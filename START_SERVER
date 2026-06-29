@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$PROJECT_DIR"
+
+PORT="${PORT:-8443}"
+HOST="${HOST:-0.0.0.0}"
+SHARED_ROOT="${1:-${FILE_SERVER_ROOT:-$PROJECT_DIR/shared_files}}"
+SERVER_IP="${SERVER_IP:-$(hostname -I | awk '{print $1}')}"
+
+if [[ -z "$SERVER_IP" ]]; then
+  echo "Nao consegui descobrir o IP local deste servidor."
+  echo "Tente executar assim:"
+  echo "  SERVER_IP=192.168.1.50 ./START_SERVER"
+  exit 1
+fi
+
+if [[ ! -d "$SHARED_ROOT" ]]; then
+  echo "A pasta compartilhada nao existe. Criando:"
+  echo "  $SHARED_ROOT"
+  mkdir -p "$SHARED_ROOT"
+fi
+
+if [[ ! -x ".venv/bin/uvicorn" ]]; then
+  echo "Ambiente virtual nao encontrado ou incompleto. Preparando .venv..."
+  python3 -m venv .venv
+  .venv/bin/python -m pip install --upgrade pip
+  .venv/bin/python -m pip install -r requirements.txt
+fi
+
+if [[ ! -f "certs/server.crt" || ! -f "certs/server.key" || "${FORCE_CERT:-0}" == "1" ]]; then
+  echo "Gerando certificado HTTPS para o IP $SERVER_IP..."
+  ./scripts/create-cert.sh "$SERVER_IP"
+fi
+
+export FILE_SERVER_ROOT="$SHARED_ROOT"
+
+echo
+echo "Servidor de arquivos HTTPS"
+echo "Pasta compartilhada: $FILE_SERVER_ROOT"
+echo "Endereco local:       https://127.0.0.1:$PORT"
+echo "Endereco na rede:     https://$SERVER_IP:$PORT"
+echo
+echo "Documentacao:         https://$SERVER_IP:$PORT/docs"
+echo "Teste de saude:       https://$SERVER_IP:$PORT/health"
+echo
+echo "Para desligar, pressione Ctrl+C."
+echo
+
+exec .venv/bin/uvicorn app.main:app \
+  --host "$HOST" \
+  --port "$PORT" \
+  --ssl-keyfile certs/server.key \
+  --ssl-certfile certs/server.crt
