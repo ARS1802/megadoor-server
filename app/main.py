@@ -276,4 +276,4 @@ async def upload_file(
         saved_as=relative_to_shared_root(destination),
         filename=filename,
         size=destination.stat().st_size,
-    )
+        )

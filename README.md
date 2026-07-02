@@ -11,6 +11,7 @@ Fluxo principal:
 
 Por seguranca, os clientes nao podem pedir caminhos livres do sistema, como
 `/etc/passwd`. Eles sempre pedem caminhos relativos dentro de uma pasta base.
+Todos os endpoints exigem um token no header `Authorization`.
 
 ## Estrutura
 
@@ -105,14 +106,15 @@ Para compartilhar uma pasta especifica:
 ./START_SERVER "$HOME/scripts"
 ```
 
-O comando manual equivalente e:
+Ao iniciar, o script gera 16 tokens novos com `secrets.token_urlsafe(16)`.
+Esses tokens ficam fixos durante essa execucao do servidor, aparecem no terminal
+e tambem sao escritos em um arquivo chamado `tokenList` dentro da pasta
+compartilhada.
 
-```bash
-uvicorn app.main:app \
-  --host 0.0.0.0 \
-  --port 8443 \
-  --ssl-keyfile certs/server.key \
-  --ssl-certfile certs/server.crt
+Cada requisicao precisa enviar um desses tokens:
+
+```text
+Authorization: Bearer TOKEN
 ```
 
 O `--host 0.0.0.0` permite que outros dispositivos da rede acessem a API.
@@ -125,46 +127,52 @@ sudo ufw allow 8443/tcp
 
 ## 6. Testar a partir de outro computador da rede
 
+Escolha um token impresso pelo `START_SERVER` e salve em uma variavel:
+
+```bash
+TOKEN="cole-um-token-aqui"
+```
+
 Verificar se a API esta viva:
 
 ```bash
-curl -k https://192.168.1.50:8443/health
+curl -k -H "Authorization: Bearer $TOKEN" https://192.168.1.50:8443/health
 ```
 
 Listar a pasta compartilhada:
 
 ```bash
-curl -k -X POST -F "path=." "https://192.168.1.50:8443/api/list"
+curl -k -H "Authorization: Bearer $TOKEN" -X POST -F "path=." "https://192.168.1.50:8443/api/list"
 ```
 
 Listar um subdiretorio:
 
 ```bash
-curl -k -X POST -F "path=documentos" "https://192.168.1.50:8443/api/list"
+curl -k -H "Authorization: Bearer $TOKEN" -X POST -F "path=documentos" "https://192.168.1.50:8443/api/list"
 ```
 
 Baixar um arquivo:
 
 ```bash
-curl -k -OJ -X POST -F "path=documentos/nota.txt" "https://192.168.1.50:8443/api/download"
+curl -k -H "Authorization: Bearer $TOKEN" -OJ -X POST -F "path=documentos/nota.txt" "https://192.168.1.50:8443/api/download"
 ```
 
 Baixar um diretorio como `.zip`:
 
 ```bash
-curl -k -OJ -X POST -F "path=documentos" "https://192.168.1.50:8443/api/archive"
+curl -k -H "Authorization: Bearer $TOKEN" -OJ -X POST -F "path=documentos" "https://192.168.1.50:8443/api/archive"
 ```
 
 Criar uma pasta:
 
 ```bash
-curl -k -X POST -F "path=documentos/projetos" "https://192.168.1.50:8443/api/folders"
+curl -k -H "Authorization: Bearer $TOKEN" -X POST -F "path=documentos/projetos" "https://192.168.1.50:8443/api/folders"
 ```
 
 Enviar um arquivo:
 
 ```bash
-curl -k -X POST \
+curl -k -H "Authorization: Bearer $TOKEN" -X POST \
   -F "path=documentos" \
   -F "file=@/home/seu-usuario/nota.txt" \
   "https://192.168.1.50:8443/api/upload"
@@ -189,6 +197,9 @@ formData.append("path", "documentos");
 
 await fetch("https://192.168.1.50:8443/api/list", {
   method: "POST",
+  headers: {
+    Authorization: `Bearer ${TOKEN}`,
+  },
   body: formData,
 });
 ```
@@ -214,6 +225,8 @@ pytest
 
 - Nao exponha este servidor diretamente na internet.
 - Use uma pasta compartilhada especifica, nao a raiz do sistema.
-- Este projeto nao tem login/senha. Qualquer dispositivo da sua rede que consiga
-  acessar a porta `8443` podera pedir arquivos da pasta compartilhada.
-- Para uso real, adicione autenticacao, controle de permissao e logs mais completos.
+- Os tokens mudam sempre que `START_SERVER` e executado novamente.
+- Quem tiver um token valido consegue acessar os arquivos pela API.
+- O arquivo `tokenList` contem segredos. Nao envie esse arquivo para GitHub,
+  chat, email ou outros lugares publicos.
+- Para uso real, adicione usuarios, permissoes por pasta e logs mais completos.

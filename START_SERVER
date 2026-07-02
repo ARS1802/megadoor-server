@@ -37,6 +37,24 @@ if [[ ! -f "certs/server.crt" || ! -f "certs/server.key" || "${FORCE_CERT:-0}" =
 fi
 
 export FILE_SERVER_ROOT="$SHARED_ROOT"
+FILE_SERVER_TOKENS="$(
+  .venv/bin/python -c 'import secrets; print(",".join(secrets.token_urlsafe(16) for _ in range(16)))'
+)"
+export FILE_SERVER_TOKENS
+
+TOKEN_FILE="$FILE_SERVER_ROOT/tokenList"
+IFS=',' read -r -a TOKEN_ARRAY <<< "$FILE_SERVER_TOKENS"
+
+{
+  echo "Tokens desta execucao do servidor"
+  echo "Use um deles no header HTTP:"
+  echo "Authorization: Bearer TOKEN"
+  echo
+  for token_index in "${!TOKEN_ARRAY[@]}"; do
+    printf "token_%02d=%s\n" "$((token_index + 1))" "${TOKEN_ARRAY[$token_index]}"
+  done
+} > "$TOKEN_FILE"
+chmod 600 "$TOKEN_FILE"
 
 echo
 echo "Servidor de arquivos HTTPS"
@@ -46,6 +64,9 @@ echo "Endereco na rede:     https://$SERVER_IP:$PORT"
 echo
 echo "Documentacao:         https://$SERVER_IP:$PORT/docs"
 echo "Teste de saude:       https://$SERVER_IP:$PORT/health"
+echo "Lista de tokens:      $TOKEN_FILE"
+echo
+cat "$TOKEN_FILE"
 echo
 echo "Para desligar, pressione Ctrl+C."
 echo

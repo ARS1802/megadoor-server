@@ -3,24 +3,53 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+AUTH_HEADERS = {"Authorization": "Bearer token-de-teste"}
+
+
+def set_auth_tokens(monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_TOKENS", "token-de-teste,outro-token")
+
+
 def test_health_uses_configured_shared_root(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
     client = TestClient(app)
 
-    response = client.get("/health")
+    response = client.get("/health", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["shared_root"] == str(tmp_path.resolve())
 
 
+def test_rejects_missing_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/health")
+
+    assert response.status_code == 401
+
+
+def test_rejects_invalid_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/health", headers={"Authorization": "Bearer token-errado"})
+
+    assert response.status_code == 403
+
+
 def test_list_directory(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
     (tmp_path / "documentos").mkdir()
     (tmp_path / "documentos" / "nota.txt").write_text("ola rede", encoding="utf-8")
     client = TestClient(app)
 
-    response = client.post("/api/list", data={"path": "documentos"})
+    response = client.post("/api/list", data={"path": "documentos"}, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     body = response.json()
@@ -32,10 +61,11 @@ def test_list_directory(tmp_path, monkeypatch):
 
 def test_download_file(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
     (tmp_path / "arquivo.txt").write_text("conteudo", encoding="utf-8")
     client = TestClient(app)
 
-    response = client.post("/api/download", data={"path": "arquivo.txt"})
+    response = client.post("/api/download", data={"path": "arquivo.txt"}, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.text == "conteudo"
@@ -43,9 +73,10 @@ def test_download_file(tmp_path, monkeypatch):
 
 def test_create_folder(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
     client = TestClient(app)
 
-    response = client.post("/api/folders", data={"path": "documentos/projetos"})
+    response = client.post("/api/folders", data={"path": "documentos/projetos"}, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.json() == {
@@ -58,12 +89,14 @@ def test_create_folder(tmp_path, monkeypatch):
 
 def test_upload_file(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
     client = TestClient(app)
 
     response = client.post(
         "/api/upload",
         data={"path": "envios"},
         files={"file": ("arquivo.txt", b"conteudo enviado", "text/plain")},
+        headers=AUTH_HEADERS,
     )
 
     assert response.status_code == 200
@@ -78,21 +111,24 @@ def test_upload_file(tmp_path, monkeypatch):
 
 def test_blocks_path_traversal(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
     client = TestClient(app)
 
-    response = client.post("/api/list", data={"path": "../"})
+    response = client.post("/api/list", data={"path": "../"}, headers=AUTH_HEADERS)
 
     assert response.status_code == 403
 
 
 def test_upload_sanitizes_filename(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
     client = TestClient(app)
 
     response = client.post(
         "/api/upload",
         data={"path": "."},
         files={"file": ("../arquivo.txt", b"conteudo", "text/plain")},
+        headers=AUTH_HEADERS,
     )
 
     assert response.status_code == 200
