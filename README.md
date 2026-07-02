@@ -178,6 +178,48 @@ curl -k -H "Authorization: Bearer $TOKEN" -X POST \
   "https://192.168.1.50:8443/api/upload"
 ```
 
+Deletar um arquivo ou pasta:
+
+```bash
+curl -k -H "Authorization: Bearer $TOKEN" -X POST \
+  -F "path=documentos/nota.txt" \
+  "https://192.168.1.50:8443/api/delete"
+```
+
+Mover um arquivo ou pasta:
+
+```bash
+curl -k -H "Authorization: Bearer $TOKEN" -X POST \
+  -F "source_path=documentos/nota.txt" \
+  -F "target_path=backup/nota.txt" \
+  "https://192.168.1.50:8443/api/move"
+```
+
+Copiar um arquivo ou pasta:
+
+```bash
+curl -k -H "Authorization: Bearer $TOKEN" -X POST \
+  -F "source_path=documentos" \
+  -F "target_path=copia-documentos" \
+  "https://192.168.1.50:8443/api/copy"
+```
+
+Renomear um arquivo ou pasta:
+
+```bash
+curl -k -H "Authorization: Bearer $TOKEN" -X POST \
+  -F "source_path=documentos/nota.txt" \
+  -F "new_name=nota-final.txt" \
+  "https://192.168.1.50:8443/api/rename"
+```
+
+Por padrao, `move`, `copy` e `rename` recusam sobrescrever destinos que ja
+existem. Para permitir substituicao, envie tambem:
+
+```bash
+-F "overwrite=true"
+```
+
 ## Endpoints
 
 | Metodo | Caminho | O que faz |
@@ -188,6 +230,10 @@ curl -k -H "Authorization: Bearer $TOKEN" -X POST \
 | `POST` | `/api/archive` | Baixa um diretorio como `.zip` usando `FormData` com `path` |
 | `POST` | `/api/folders` | Cria uma pasta usando `FormData` com `path` |
 | `POST` | `/api/upload` | Envia um arquivo usando `FormData` com `path` e `file` |
+| `POST` | `/api/delete` | Deleta arquivo ou pasta usando `FormData` com `path` |
+| `POST` | `/api/move` | Move arquivo ou pasta usando `source_path`, `target_path` e `overwrite` |
+| `POST` | `/api/copy` | Copia arquivo ou pasta usando `source_path`, `target_path` e `overwrite` |
+| `POST` | `/api/rename` | Renomeia arquivo ou pasta usando `source_path`, `new_name` e `overwrite` |
 
 No JavaScript, o padrao fica assim:
 

@@ -134,3 +134,143 @@ def test_upload_sanitizes_filename(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert response.json()["saved_as"] == "arquivo.txt"
     assert (tmp_path / "arquivo.txt").exists()
+
+
+def test_delete_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    (tmp_path / "arquivo.txt").write_text("conteudo", encoding="utf-8")
+    client = TestClient(app)
+
+    response = client.post("/api/delete", data={"path": "arquivo.txt"}, headers=AUTH_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json()["operation"] == "delete"
+    assert not (tmp_path / "arquivo.txt").exists()
+
+
+def test_delete_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    (tmp_path / "pasta" / "subpasta").mkdir(parents=True)
+    (tmp_path / "pasta" / "subpasta" / "arquivo.txt").write_text("conteudo", encoding="utf-8")
+    client = TestClient(app)
+
+    response = client.post("/api/delete", data={"path": "pasta"}, headers=AUTH_HEADERS)
+
+    assert response.status_code == 200
+    assert not (tmp_path / "pasta").exists()
+
+
+def test_rejects_delete_shared_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    client = TestClient(app)
+
+    response = client.post("/api/delete", data={"path": "."}, headers=AUTH_HEADERS)
+
+    assert response.status_code == 400
+
+
+def test_move_file_to_existing_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    (tmp_path / "arquivo.txt").write_text("conteudo", encoding="utf-8")
+    (tmp_path / "documentos").mkdir()
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/move",
+        data={"source_path": "arquivo.txt", "target_path": "documentos"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["target_path"] == "documentos/arquivo.txt"
+    assert not (tmp_path / "arquivo.txt").exists()
+    assert (tmp_path / "documentos" / "arquivo.txt").read_text(encoding="utf-8") == "conteudo"
+
+
+def test_move_rejects_existing_destination_without_overwrite(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    (tmp_path / "origem.txt").write_text("origem", encoding="utf-8")
+    (tmp_path / "destino.txt").write_text("destino", encoding="utf-8")
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/move",
+        data={"source_path": "origem.txt", "target_path": "destino.txt"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 409
+    assert (tmp_path / "origem.txt").exists()
+    assert (tmp_path / "destino.txt").read_text(encoding="utf-8") == "destino"
+
+
+def test_copy_directory(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    (tmp_path / "origem" / "subpasta").mkdir(parents=True)
+    (tmp_path / "origem" / "subpasta" / "arquivo.txt").write_text("conteudo", encoding="utf-8")
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/copy",
+        data={"source_path": "origem", "target_path": "copia"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["target_path"] == "copia"
+    assert (tmp_path / "origem" / "subpasta" / "arquivo.txt").exists()
+    assert (tmp_path / "copia" / "subpasta" / "arquivo.txt").read_text(encoding="utf-8") == "conteudo"
+
+
+def test_copy_rejects_directory_inside_itself(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    (tmp_path / "origem").mkdir()
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/copy",
+        data={"source_path": "origem", "target_path": "origem/subpasta"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 400
+
+
+def test_rename_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    (tmp_path / "antigo.txt").write_text("conteudo", encoding="utf-8")
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/rename",
+        data={"source_path": "antigo.txt", "new_name": "novo.txt"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["target_path"] == "novo.txt"
+    assert not (tmp_path / "antigo.txt").exists()
+    assert (tmp_path / "novo.txt").read_text(encoding="utf-8") == "conteudo"
+
+
+def test_rename_rejects_name_with_path_separator(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    set_auth_tokens(monkeypatch)
+    (tmp_path / "arquivo.txt").write_text("conteudo", encoding="utf-8")
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/rename",
+        data={"source_path": "arquivo.txt", "new_name": "pasta/arquivo.txt"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 400
