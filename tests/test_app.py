@@ -42,6 +42,25 @@ def test_rejects_invalid_token(tmp_path, monkeypatch):
     assert response.status_code == 403
 
 
+def test_cors_preflight_allows_browser_requests(monkeypatch):
+    set_auth_tokens(monkeypatch)
+    client = TestClient(app)
+
+    response = client.options(
+        "/api/list",
+        headers={
+            "Origin": "null",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"
+    assert "POST" in response.headers["access-control-allow-methods"]
+    assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+
 def test_list_directory(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
     set_auth_tokens(monkeypatch)

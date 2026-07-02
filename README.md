@@ -12,6 +12,8 @@ Fluxo principal:
 Por seguranca, os clientes nao podem pedir caminhos livres do sistema, como
 `/etc/passwd`. Eles sempre pedem caminhos relativos dentro de uma pasta base.
 Todos os endpoints exigem um token no header `Authorization`.
+O servidor tambem libera CORS para permitir que um HTML aberto em outro
+computador da rede use `fetch()` no navegador.
 
 ## Estrutura
 
@@ -118,6 +120,9 @@ Authorization: Bearer TOKEN
 ```
 
 O `--host 0.0.0.0` permite que outros dispositivos da rede acessem a API.
+O CORS ja esta habilitado no FastAPI para uso em rede local. Em termos simples,
+isso permite que uma pagina HTML aberta em outro computador faca requisicoes ao
+servidor usando JavaScript e o header `Authorization`.
 
 Se o firewall estiver ativo, libere a porta:
 

@@ -31,8 +31,18 @@ fi
 echo "Garantindo dependencias do Python..."
 .venv/bin/python -m pip install -r requirements.txt
 
-if [[ ! -f "certs/server.crt" || ! -f "certs/server.key" || "${FORCE_CERT:-0}" == "1" ]]; then
-  echo "Gerando certificado HTTPS para o IP $SERVER_IP..."
+CERT_REASON=""
+
+if [[ "${FORCE_CERT:-0}" == "1" ]]; then
+  CERT_REASON="FORCE_CERT=1"
+elif [[ ! -f "certs/server.crt" || ! -f "certs/server.key" ]]; then
+  CERT_REASON="certificado ou chave ausente"
+elif ! openssl x509 -in certs/server.crt -noout -ext subjectAltName 2>/dev/null | grep -q "IP Address:$SERVER_IP"; then
+  CERT_REASON="certificado nao contem o IP atual $SERVER_IP"
+fi
+
+if [[ -n "$CERT_REASON" ]]; then
+  echo "Gerando certificado HTTPS para o IP $SERVER_IP ($CERT_REASON)..."
   ./scripts/create-cert.sh "$SERVER_IP"
 fi
 
