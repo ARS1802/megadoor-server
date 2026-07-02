@@ -6,7 +6,8 @@ Fluxo principal:
 
 1. Um computador cliente faz uma requisicao HTTPS informando um caminho.
 2. Este servidor procura esse caminho dentro da pasta compartilhada.
-3. O servidor responde com a lista, com um arquivo, ou com um `.zip` de um diretorio.
+3. O servidor responde com a lista, com um arquivo, com um `.zip` de um
+   diretorio, ou salva arquivos enviados pelo cliente.
 
 Por seguranca, os clientes nao podem pedir caminhos livres do sistema, como
 `/etc/passwd`. Eles sempre pedem caminhos relativos dentro de uma pasta base.
@@ -17,6 +18,7 @@ Por seguranca, os clientes nao podem pedir caminhos livres do sistema, como
 .
 ├── app/
 │   └── main.py
+├── START_SERVER
 ├── scripts/
 │   └── create-cert.sh
 ├── shared_files/
@@ -91,6 +93,20 @@ Troque `192.168.1.50` pelo IP real do servidor.
 
 ## 5. Iniciar o servidor
 
+O jeito mais simples e usar o script `START_SERVER`:
+
+```bash
+./START_SERVER
+```
+
+Para compartilhar uma pasta especifica:
+
+```bash
+./START_SERVER "$HOME/scripts"
+```
+
+O comando manual equivalente e:
+
 ```bash
 uvicorn app.main:app \
   --host 0.0.0.0 \
@@ -118,25 +134,40 @@ curl -k https://192.168.1.50:8443/health
 Listar a pasta compartilhada:
 
 ```bash
-curl -k "https://192.168.1.50:8443/api/list?path=."
+curl -k -X POST -F "path=." "https://192.168.1.50:8443/api/list"
 ```
 
 Listar um subdiretorio:
 
 ```bash
-curl -k "https://192.168.1.50:8443/api/list?path=documentos"
+curl -k -X POST -F "path=documentos" "https://192.168.1.50:8443/api/list"
 ```
 
 Baixar um arquivo:
 
 ```bash
-curl -k -OJ "https://192.168.1.50:8443/api/download?path=documentos/nota.txt"
+curl -k -OJ -X POST -F "path=documentos/nota.txt" "https://192.168.1.50:8443/api/download"
 ```
 
 Baixar um diretorio como `.zip`:
 
 ```bash
-curl -k -OJ "https://192.168.1.50:8443/api/archive?path=documentos"
+curl -k -OJ -X POST -F "path=documentos" "https://192.168.1.50:8443/api/archive"
+```
+
+Criar uma pasta:
+
+```bash
+curl -k -X POST -F "path=documentos/projetos" "https://192.168.1.50:8443/api/folders"
+```
+
+Enviar um arquivo:
+
+```bash
+curl -k -X POST \
+  -F "path=documentos" \
+  -F "file=@/home/seu-usuario/nota.txt" \
+  "https://192.168.1.50:8443/api/upload"
 ```
 
 ## Endpoints
@@ -144,9 +175,23 @@ curl -k -OJ "https://192.168.1.50:8443/api/archive?path=documentos"
 | Metodo | Caminho | O que faz |
 | --- | --- | --- |
 | `GET` | `/health` | Mostra se a API esta funcionando |
-| `GET` | `/api/list?path=.` | Lista arquivos e diretorios |
-| `GET` | `/api/download?path=arquivo.txt` | Baixa um arquivo |
-| `GET` | `/api/archive?path=pasta` | Baixa um diretorio como `.zip` |
+| `POST` | `/api/list` | Lista arquivos e diretorios usando `FormData` com `path` |
+| `POST` | `/api/download` | Baixa um arquivo usando `FormData` com `path` |
+| `POST` | `/api/archive` | Baixa um diretorio como `.zip` usando `FormData` com `path` |
+| `POST` | `/api/folders` | Cria uma pasta usando `FormData` com `path` |
+| `POST` | `/api/upload` | Envia um arquivo usando `FormData` com `path` e `file` |
+
+No JavaScript, o padrao fica assim:
+
+```js
+const formData = new FormData();
+formData.append("path", "documentos");
+
+await fetch("https://192.168.1.50:8443/api/list", {
+  method: "POST",
+  body: formData,
+});
+```
 
 ## Documentacao interativa
 

@@ -20,7 +20,7 @@ def test_list_directory(tmp_path, monkeypatch):
     (tmp_path / "documentos" / "nota.txt").write_text("ola rede", encoding="utf-8")
     client = TestClient(app)
 
-    response = client.get("/api/list", params={"path": "documentos"})
+    response = client.post("/api/list", data={"path": "documentos"})
 
     assert response.status_code == 200
     body = response.json()
@@ -35,16 +35,66 @@ def test_download_file(tmp_path, monkeypatch):
     (tmp_path / "arquivo.txt").write_text("conteudo", encoding="utf-8")
     client = TestClient(app)
 
-    response = client.get("/api/download", params={"path": "arquivo.txt"})
+    response = client.post("/api/download", data={"path": "arquivo.txt"})
 
     assert response.status_code == 200
     assert response.text == "conteudo"
+
+
+def test_create_folder(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    client = TestClient(app)
+
+    response = client.post("/api/folders", data={"path": "documentos/projetos"})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "path": "documentos/projetos",
+        "created": True,
+    }
+    assert (tmp_path / "documentos" / "projetos").is_dir()
+
+
+def test_upload_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/upload",
+        data={"path": "envios"},
+        files={"file": ("arquivo.txt", b"conteudo enviado", "text/plain")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "saved_as": "envios/arquivo.txt",
+        "filename": "arquivo.txt",
+        "size": 16,
+    }
+    assert (tmp_path / "envios" / "arquivo.txt").read_text(encoding="utf-8") == "conteudo enviado"
 
 
 def test_blocks_path_traversal(tmp_path, monkeypatch):
     monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
     client = TestClient(app)
 
-    response = client.get("/api/list", params={"path": "../"})
+    response = client.post("/api/list", data={"path": "../"})
 
     assert response.status_code == 403
+
+
+def test_upload_sanitizes_filename(tmp_path, monkeypatch):
+    monkeypatch.setenv("FILE_SERVER_ROOT", str(tmp_path))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/upload",
+        data={"path": "."},
+        files={"file": ("../arquivo.txt", b"conteudo", "text/plain")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["saved_as"] == "arquivo.txt"
+    assert (tmp_path / "arquivo.txt").exists()

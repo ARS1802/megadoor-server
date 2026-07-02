@@ -2,10 +2,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 import os
+import shutil
 import tempfile
 import zipfile
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
@@ -14,9 +15,9 @@ from starlette.background import BackgroundTask
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_SHARED_ROOT = PROJECT_DIR / "shared_files"
 
-PathQuery = Annotated[
+PathForm = Annotated[
     str,
-    Query(
+    Form(
         description=(
             "Caminho relativo dentro da pasta compartilhada. "
             "Exemplos: '.', 'documentos' ou 'documentos/nota.txt'."
@@ -46,6 +47,19 @@ class DirectoryListing(BaseModel):
     shared_root: str
     path: str
     items: list[FileItem]
+
+
+class FolderResult(BaseModel):
+    status: str
+    path: str
+    created: bool
+
+
+class UploadResult(BaseModel):
+    status: str
+    saved_as: str
+    filename: str
+    size: int
 
 
 def get_shared_root() -> Path:
@@ -93,6 +107,15 @@ def is_inside_shared_root(path: Path) -> bool:
     return True
 
 
+def safe_upload_filename(filename: str | None) -> str:
+    clean_name = Path(filename or "").name.strip()
+
+    if clean_name in {"", ".", ".."}:
+        raise HTTPException(status_code=400, detail="Nome de arquivo invalido.")
+
+    return clean_name
+
+
 def format_mtime(path: Path) -> str:
     return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
 
@@ -125,8 +148,8 @@ def health() -> dict[str, str]:
     return {"status": "ok", "shared_root": str(get_shared_root())}
 
 
-@app.get("/api/list", response_model=DirectoryListing)
-def list_directory(path: PathQuery = ".") -> DirectoryListing:
+@app.post("/api/list", response_model=DirectoryListing)
+def list_directory(path: PathForm = ".") -> DirectoryListing:
     target = resolve_safe_path(path)
 
     if not target.exists():
@@ -168,8 +191,8 @@ def list_directory(path: PathQuery = ".") -> DirectoryListing:
     )
 
 
-@app.get("/api/download")
-def download_file(path: PathQuery) -> FileResponse:
+@app.post("/api/download")
+def download_file(path: PathForm) -> FileResponse:
     target = resolve_safe_path(path)
 
     if not target.exists():
@@ -184,8 +207,8 @@ def download_file(path: PathQuery) -> FileResponse:
     return FileResponse(target, filename=target.name)
 
 
-@app.get("/api/archive")
-def download_directory_as_zip(path: PathQuery = ".") -> FileResponse:
+@app.post("/api/archive")
+def download_directory_as_zip(path: PathForm = ".") -> FileResponse:
     target = resolve_safe_path(path)
 
     if not target.exists():
@@ -202,4 +225,55 @@ def download_directory_as_zip(path: PathQuery = ".") -> FileResponse:
         media_type="application/zip",
         filename=filename,
         background=BackgroundTask(zip_path.unlink, missing_ok=True),
+    )
+
+
+@app.post("/api/folders", response_model=FolderResult)
+def create_folder(path: PathForm) -> FolderResult:
+    target = resolve_safe_path(path)
+
+    if target.exists() and not target.is_dir():
+        raise HTTPException(status_code=400, detail="Ja existe um arquivo com este nome.")
+
+    created = not target.exists()
+    target.mkdir(parents=True, exist_ok=True)
+
+    return FolderResult(
+        status="ok",
+        path=relative_to_shared_root(target),
+        created=created,
+    )
+
+
+@app.post("/api/upload", response_model=UploadResult)
+async def upload_file(
+    path: PathForm = ".",
+    file: UploadFile = File(...),
+) -> UploadResult:
+    target_dir = resolve_safe_path(path)
+
+    if target_dir.exists() and not target_dir.is_dir():
+        raise HTTPException(status_code=400, detail="O caminho precisa ser um diretorio.")
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = safe_upload_filename(file.filename)
+    destination = (target_dir / filename).resolve()
+
+    if not is_inside_shared_root(destination):
+        raise HTTPException(status_code=403, detail="Nome de arquivo invalido.")
+
+    try:
+        with destination.open("wb") as output:
+            shutil.copyfileobj(file.file, output)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Sem permissao para salvar este arquivo.")
+    finally:
+        await file.close()
+
+    return UploadResult(
+        status="ok",
+        saved_as=relative_to_shared_root(destination),
+        filename=filename,
+        size=destination.stat().st_size,
     )

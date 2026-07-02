@@ -26,8 +26,10 @@ if [[ ! -x ".venv/bin/uvicorn" ]]; then
   echo "Ambiente virtual nao encontrado ou incompleto. Preparando .venv..."
   python3 -m venv .venv
   .venv/bin/python -m pip install --upgrade pip
-  .venv/bin/python -m pip install -r requirements.txt
 fi
+
+echo "Garantindo dependencias do Python..."
+.venv/bin/python -m pip install -r requirements.txt
 
 if [[ ! -f "certs/server.crt" || ! -f "certs/server.key" || "${FORCE_CERT:-0}" == "1" ]]; then
   echo "Gerando certificado HTTPS para o IP $SERVER_IP..."
