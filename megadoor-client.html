@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Megadoor — Navegador de Arquivos</title>
+<style>
+  /* ============ TEMA / DESIGN SYSTEM ============ */
+  :root {
+    --bg: #f4f6fa;
+    --panel: #ffffff;
+    --panel-2: #fafbfd;
+    --border: #dfe4ec;
+    --text: #1b2330;
+    --muted: #667085;
+    --primary: #2563eb;
+    --primary-contrast: #ffffff;
+    --hover: #eef2ff;
+    --selected: #dbeafe;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --warning: #d97706;
+    --shadow: 0 2px 8px rgba(0,0,0,.06);
+  }
+  html.dark {
+    --bg: #0f1420;
+    --panel: #171d2b;
+    --panel-2: #1d2432;
+    --border: #2a3345;
+    --text: #e7ecf3;
+    --muted: #9aa4b2;
+    --primary: #3b82f6;
+    --primary-contrast: #ffffff;
+    --hover: #202a3d;
+    --selected: #1e3a8a;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --shadow: 0 2px 10px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  button, input, select {
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    cursor: pointer;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary {
+    background: var(--primary);
+    color: var(--primary-contrast);
+    border-color: var(--primary);
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(1.1); }
+  button.danger { color: var(--danger); border-color: var(--danger); }
+  button.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+  input[type="text"], input[type="password"], input[type="url"] {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    width: 100%;
+    outline: none;
+  }
+  input:focus { border-color: var(--primary); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  /* ============ LAYOUT ============ */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .topbar h1 {
+    font-size: 20px; margin: 0; display: flex; align-items: center; gap: 8px;
+  }
+  .topbar .spacer { flex: 1; }
+  .switch {
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none;
+  }
+  .switch input { display: none; }
+  .switch .track {
+    width: 44px; height: 24px; background: var(--border); border-radius: 999px;
+    position: relative; transition: background .2s;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 20px; height: 20px; background: #fff; border-radius: 50%;
+    transition: transform .2s;
+  }
+  .switch input:checked + .track { background: var(--primary); }
+  .switch input:checked + .track::after { transform: translateX(20px); }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding: 12px 18px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .path-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 10px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .crumb {
+    color: var(--primary);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    text-decoration: none;
+  }
+  .crumb:hover { background: var(--hover); }
+  .crumb.current { color: var(--text); cursor: default; }
+  .crumb.current:hover { background: transparent; }
+  .sep { color: var(--muted); }
+
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 0;
+    height: calc(100vh - 170px);
+  }
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; height: auto; }
+    .preview-panel { border-left: 0; border-top: 1px solid var(--border); }
+  }
+
+  .file-list {
+    overflow: auto;
+    background: var(--panel);
+  }
+  .file-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 180px;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .file-row:hover { background: var(--hover); }
+  .file-row.selected { background: var(--selected); }
+  .file-row .icon { font-size: 26px; text-align: center; }
+  .file-row .name { font-weight: 500; word-break: break-word; }
+  .file-row .meta { color: var(--muted); font-size: 14px; }
+  @media (max-width: 700px) {
+    .file-row { grid-template-columns: 36px 1fr; }
+    .file-row .meta { display: none; }
+  }
+  .file-list-head {
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 180px;
+    gap: 12px;
+    padding: 10px 18px;
+    color: var(--muted);
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    position: sticky; top: 0;
+  }
+  @media (max-width: 700px) { .file-list-head { display: none; } }
+  .empty {
+    padding: 40px 20px; text-align: center; color: var(--muted);
+  }
+
+  .preview-panel {
+    background: var(--panel-2);
+    border-left: 1px solid var(--border);
+    overflow: auto;
+    padding: 18px;
+  }
+  .preview-panel h3 { margin-top: 0; }
+  .preview-panel .meta-line { color: var(--muted); font-size: 14px; margin: 4px 0; word-break: break-all; }
+  .preview-box {
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 120px;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .preview-box img, .preview-box video, .preview-box audio { max-width: 100%; max-height: 400px; }
+  .preview-box pre {
+    max-width: 100%; max-height: 400px; overflow: auto;
+    white-space: pre-wrap; word-break: break-word;
+    margin: 0; text-align: left; width: 100%;
+  }
+  .preview-box iframe { width: 100%; height: 400px; border: 0; }
+  .preview-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+  /* ============ TELAS (CONFIG / LOGIN) ============ */
+  .screen-center {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; max-width: 520px; width: 100%;
+    box-shadow: var(--shadow);
+  }
+  .card h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; }
+  .field { margin: 14px 0; }
+  .field label { display: block; margin-bottom: 6px; font-weight: 600; }
+  .hint { color: var(--muted); font-size: 14px; }
+
+  .settings-page {
+    max-width: 720px; margin: 20px auto; padding: 0 18px;
+  }
+
+  /* ============ TOAST / DIÁLOGO ============ */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: var(--bg);
+    padding: 12px 18px; border-radius: 10px;
+    box-shadow: var(--shadow);
+    max-width: 90%; z-index: 999;
+    opacity: 0; transition: opacity .2s;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { background: var(--danger); color: #fff; }
+  #toast.success { background: var(--success); color: #fff; }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+    padding: 20px;
+  }
+  .modal {
+    background: var(--panel); border-radius: 14px;
+    padding: 24px; max-width: 480px; width: 100%;
+    box-shadow: var(--shadow);
+  }
+  .modal h3 { margin-top: 0; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+  details.tech { margin-top: 10px; }
+  details.tech summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+  details.tech pre { background: var(--panel-2); padding: 10px; border-radius: 8px; overflow: auto; font-size: 12px; }
+
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .status-dot.ok { background: var(--success); }
+  .status-dot.err { background: var(--danger); }
+
+  .clipboard-info {
+    padding: 10px 18px; background: var(--warning); color: #000;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ============ TELA DE PRIMEIRO ACESSO ============ -->
+<div id="loginScreen" class="screen-center hidden">
+  <div class="card">
+    <h2>🚪 Megadoor</h2>
+    <p class="hint">Para começar, informe o endereço do servidor e o token de acesso. Esses dados ficarão salvos neste navegador.</p>
+    <div class="field">
+      <label for="loginBase">Endereço do servidor (IP ou URL)</label>
+      <input id="loginBase" type="text" placeholder="Ex.: https://192.168.1.50:8443" />
+      <div class="hint">Inclua <b>https://</b> e a porta (normalmente 8443).</div>
+    </div>
+    <div class="field">
+      <label for="loginToken">Token de acesso</label>
+      <input id="loginToken" type="password" placeholder="Cole aqui o token fornecido" />
+    </div>
+    <div class="row" style="justify-content: space-between; margin-top: 18px;">
+      <button id="loginTest">🔌 Testar conexão</button>
+      <button id="loginSave" class="primary">💾 Salvar e entrar</button>
+    </div>
+    <div class="hint" style="margin-top: 16px;">
+      ⚠️ Se o servidor usa certificado autoassinado, o navegador pode bloquear a conexão. Abra o endereço acima em uma nova aba e aceite o certificado antes de continuar.
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP PRINCIPAL ============ -->
+<div id="appScreen" class="hidden">
+  <div class="topbar">
+    <h1>🚪 Megadoor</h1>
+    <span id="connStatus" class="hint"><span class="status-dot"></span> Verificando...</span>
+    <div class="spacer"></div>
+    <label class="switch" title="Alternar tema">
+      <input id="themeSwitch" type="checkbox" />
+      <span class="track"></span>
+      <span>🌙</span>
+    </label>
+    <button id="btnGoSettings">⚙️ Configurações</button>
+  </div>
+
+  <!-- Barra de ferramentas -->
+  <div class="toolbar" id="toolbar">
+    <button id="btnBack" title="Voltar para pasta anterior">⬅️ Voltar</button>
+    <button id="btnRoot" title="Ir para a raiz">🏠 Raiz</button>
+    <button id="btnRefresh" title="Atualizar lista">🔄 Atualizar</button>
+    <button id="btnUpload" class="primary">⬆️ Enviar arquivo</button>
+    <button id="btnNewFolder">📁 Criar pasta</button>
+    <button id="btnDownload" disabled>⬇️ Baixar</button>
+    <button id="btnRename" disabled>✏️ Renomear</button>
+    <button id="btnCopy" disabled>📋 Copiar</button>
+    <button id="btnCut" disabled>✂️ Mover</button>
+    <button id="btnPaste" disabled>📌 Colar</button>
+    <button id="btnDelete" class="danger" disabled>🗑️ Excluir</button>
+    <button id="btnClearSel" disabled>❌ Cancelar seleção</button>
+    <input id="fileUploadInput" type="file" style="display:none" />
+  </div>
+
+  <div id="clipboardBar" class="clipboard-info hidden">
+    <span id="clipboardText"></span>
+    <button id="btnClearClipboard">Cancelar</button>
+  </div>
+
+  <!-- Caminho atual -->
+  <div class="path-bar" id="pathBar"></div>
+
+  <div class="main">
+    <div class="file-list">
+      <div class="file-list-head">
+        <div></div><div>Nome</div><div>Tamanho</div><div>Modificado</div>
+      </div>
+      <div id="fileList"></div>
+    </div>
+    <aside class="preview-panel">
+      <div id="previewContent">
+        <h3>Selecione um item</h3>
+        <p class="hint">Clique em um arquivo ou pasta para ver detalhes e prévia aqui.</p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ============ TELA DE CONFIGURAÇÕES ============ -->
+<div id="settingsScreen" class="hidden">
+  <div class="topbar">
+    <h1>⚙️ Configurações</h1>
+    <div class="spacer"></div>
+    <label class="switch">
+      <input id="themeSwitch2" type="checkbox" />
+      <span class="track"></span>
+      <span>🌙</span>
+    </label>
+    <button id="btnBackFromSettings">⬅️ Voltar</button>
+  </div>
+
+  <div class="settings-page">
+    <div class="card">
+      <h2>Conexão com o servidor</h2>
+      <p class="hint">Aqui você pode alterar o servidor e o token salvos neste navegador.</p>
+      <div class="field">
+        <label for="cfgBase">Endereço do servidor</label>
+        <input id="cfgBase" type="text" placeholder="https://192.168.1.50:8443" />
+      </div>
+      <div class="field">
+        <label for="cfgToken">Token de acesso</label>
+        <input id="cfgToken" type="password" placeholder="Token" />
+      </div>
+      <div class="row" style="justify-content: space-between; margin-top: 18px;">
+        <button id="cfgTest">🔌 Testar conexão</button>
+        <div class="row">
+          <button id="cfgClear" class="danger">🗑️ Limpar dados salvos</button>
+          <button id="cfgSave" class="primary">💾 Salvar</button>
+        </div>
+      </div>
+      <div id="cfgStatus" class="hint" style="margin-top: 14px;"></div>
+    </div>
+
+    <div class="card" style="margin-top: 18px;">
+      <h2>Sobre</h2>
+      <p class="hint">Cliente web para o servidor <b>megadoor-server</b>. Todos os dados são armazenados apenas no seu navegador (localStorage). Nenhuma informação é enviada para terceiros.</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="modalRoot"></div>
+
+<script>
+/* =====================================================================
+ * Cliente Megadoor — arquivo único, sem dependências externas.
+ *
+ * Organização (mental):
+ *  1. Estado + config (localStorage: base URL, token, tema)
+ *  2. Camada de API (todas as chamadas HTTP em um só lugar)
+ *  3. Utilitários (ícones, formatação, erros)
+ *  4. Navegação e renderização da lista de arquivos
+ *  5. Ações (upload, download, criar pasta, renomear, copiar, mover, deletar)
+ *  6. Preview
+ *  7. Roteamento entre telas: login / app / configurações
+ * ===================================================================== */
+
+// ------------------ 1. ESTADO ------------------
+const LS_KEYS = {
+  base:  "megadoor.baseUrl",
+  token: "megadoor.token",
+  theme: "megadoor.theme",
+};
+
+const DEFAULT_SERVER_PORT = "8443";
+const PREVIEW_MAX = 5 * 1024 * 1024; // 5 MB
+
+const state = {
+  baseUrl: localStorage.getItem(LS_KEYS.base) || "",
+  token:   localStorage.getItem(LS_KEYS.token) || "",
+  currentPath: ".",
+  items: [],
+  selected: null,           // FileItem selecionado
+  clipboard: null,          // { mode: "copy"|"move", item: FileItem }
+};
+
+// ------------------ TEMA ------------------
+function applyTheme(theme) {
+  if (theme === "dark") document.documentElement.classList.add("dark");
+  else document.documentElement.classList.remove("dark");
+  document.getElementById("themeSwitch").checked = theme === "dark";
+  document.getElementById("themeSwitch2").checked = theme === "dark";
+}
+function setTheme(theme) {
+  localStorage.setItem(LS_KEYS.theme, theme);
+  applyTheme(theme);
+}
+applyTheme(localStorage.getItem(LS_KEYS.theme) || "light");
+
+document.getElementById("themeSwitch").addEventListener("change", (e) => setTheme(e.target.checked ? "dark" : "light"));
+document.getElementById("themeSwitch2").addEventListener("change", (e) => setTheme(e.target.checked ? "dark" : "light"));
+
+// ------------------ 2. CAMADA DE API ------------------
+// Normaliza a base URL para o contrato real do servidor.
+// Se o usuario digitar apenas "192.168.0.34", usamos "https://192.168.0.34:8443".
+function normalizeBase(url) {
+  if (!url) return "";
+  let value = url.trim().replace(/\/+$/, "");
+  if (!value) return "";
+  if (!/^https?:\/\//i.test(value)) value = "https://" + value;
+
+  try {
+    const parsed = new URL(value);
+    if (!parsed.port) parsed.port = DEFAULT_SERVER_PORT;
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString().replace(/\/+$/, "");
+  } catch {
+    throw new ApiError("Endereço do servidor inválido. Use algo como 192.168.0.34 ou https://192.168.0.34:8443.");
+  }
+}
+
+// Erro amigável mapeado a partir da resposta HTTP.
+class ApiError extends Error {
+  constructor(message, { status = 0, detail = "", cause = null } = {}) {
+    super(message);
+    this.status = status;
+    this.detail = detail;
+    this.cause = cause;
+  }
+}
+
+function ensureConfigured() {
+  if (!state.baseUrl || !state.token) {
+    throw new ApiError("Servidor ou token não configurado. Abra Configurações e informe os dois campos.");
+  }
+}
+
+function makeForm(fields) {
+  const form = new FormData();
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) form.append(key, String(value));
+  });
+  return form;
+}
+
+async function apiRequest(pathname, { method = "GET", form = null } = {}) {
+  ensureConfigured();
+
+  const url = state.baseUrl.replace(/\/+$/, "") + pathname;
+  const opts = {
+    method,
+    headers: {
+      "Authorization": "Bearer " + state.token.trim(),
+      "Accept": "application/json, application/octet-stream, */*",
+    },
+  };
+  if (form) opts.body = form;
+
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    throw new ApiError(
+      "Não foi possível conectar ao servidor pelo navegador. Verifique IP, porta 8443, certificado HTTPS aceito no navegador e CORS habilitado no servidor.",
+      { cause: String(err) }
+    );
+  }
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const data = await res.clone().json();
+      detail = data.detail || JSON.stringify(data);
+    } catch {
+      try { detail = await res.text(); } catch {}
+    }
+    const friendly = friendlyStatus(res.status, detail);
+    throw new ApiError(friendly, { status: res.status, detail });
+  }
+  return res;
+}
+
+function friendlyStatus(status, detail) {
+  switch (status) {
+    case 401: return "Token inválido ou ausente. Vá em Configurações e verifique o token.";
+    case 403: return "Permissão negada para esta operação.";
+    case 404: return "Arquivo ou pasta não encontrado.";
+    case 409: return "Conflito: já existe um arquivo ou pasta com esse nome no destino.";
+    case 413: return "Arquivo muito grande para o servidor.";
+    case 422: return "A requisição enviada não está no formato esperado pela API.";
+    case 503: return "O servidor está sem tokens configurados. Inicie-o usando START_SERVER.";
+    case 500: return "Erro interno do servidor.";
+    default:  return `Erro do servidor (${status}). ${detail || ""}`.trim();
+  }
+}
+
+function normalizeItem(item) {
+  return {
+    name: item.name || "",
+    path: item.path || ".",
+    type: item.type || "file",
+    size: Number(item.size || 0),
+    modified_at: item.modified_at || "",
+  };
+}
+
+// --- Endpoints reais do megadoor-server ---
+const API = {
+  health: () => apiRequest("/health").then(r => r.json()),
+  list: (path) => {
+    return apiRequest("/api/list", {
+      method: "POST",
+      form: makeForm({ path: path || "." }),
+    }).then(r => r.json()).then(data => ({
+      ...data,
+      items: (data.items || []).map(normalizeItem),
+    }));
+  },
+  downloadBlob: (path) => {
+    return apiRequest("/api/download", {
+      method: "POST",
+      form: makeForm({ path }),
+    }).then(r => r.blob());
+  },
+  archive: (path) => {
+    return apiRequest("/api/archive", {
+      method: "POST",
+      form: makeForm({ path: path || "." }),
+    }).then(r => r.blob());
+  },
+  createFolder: (path) => {
+    return apiRequest("/api/folders", {
+      method: "POST",
+      form: makeForm({ path }),
+    }).then(r => r.json());
+  },
+  upload: (path, file) => {
+    const form = new FormData();
+    form.append("path", path || ".");
+    form.append("file", file);
+    return apiRequest("/api/upload", { method: "POST", form }).then(r => r.json());
+  },
+  delete: (path) => {
+    return apiRequest("/api/delete", {
+      method: "POST",
+      form: makeForm({ path }),
+    }).then(r => r.json());
+  },
+  move: (source, target, overwrite=false) => {
+    return apiRequest("/api/move", {
+      method: "POST",
+      form: makeForm({ source_path: source, target_path: target, overwrite: overwrite ? "true" : "false" }),
+    }).then(r => r.json());
+  },
+  copy: (source, target, overwrite=false) => {
+    return apiRequest("/api/copy", {
+      method: "POST",
+      form: makeForm({ source_path: source, target_path: target, overwrite: overwrite ? "true" : "false" }),
+    }).then(r => r.json());
+  },
+  rename: (source, newName, overwrite=false) => {
+    return apiRequest("/api/rename", {
+      method: "POST",
+      form: makeForm({ source_path: source, new_name: newName, overwrite: overwrite ? "true" : "false" }),
+    }).then(r => r.json());
+  },
+};
+
+// ------------------ 3. UTILITÁRIOS ------------------
+function ext(name) {
+  const i = name.lastIndexOf(".");
+  return i >= 0 ? name.slice(i+1).toLowerCase() : "";
+}
+
+// Emoji por tipo. Simples e legível.
+function iconFor(item) {
+  if (item.type === "directory") return "📁";
+  const e = ext(item.name);
+  if (["png","jpg","jpeg","webp","gif","bmp","svg"].includes(e)) return "🖼️";
+  if (e === "pdf") return "📕";
+  if (["mp4","mkv","mov","avi","webm"].includes(e)) return "🎬";
+  if (["mp3","wav","ogg","flac","m4a"].includes(e)) return "🎵";
+  if (["txt","md","log","csv","ini","cfg"].includes(e)) return "📄";
+  if (["zip","rar","7z","tar","gz"].includes(e)) return "🗜️";
+  if (["js","ts","py","java","c","cpp","html","css","json","yml","yaml","sh","php","rb","go","rs"].includes(e)) return "💻";
+  if (["xls","xlsx","ods"].includes(e)) return "📊";
+  if (["doc","docx","odt","rtf"].includes(e)) return "📝";
+  return "📎";
+}
+
+function fmtSize(bytes) {
+  if (bytes == null || bytes < 0) return "-";
+  if (bytes === 0) return "0 B";
+  const u = ["B","KB","MB","GB","TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes/Math.pow(1024,i)).toFixed(i === 0 ? 0 : 1) + " " + u[i];
+}
+
+function fmtDate(iso) {
+  if (!iso) return "-";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR");
+  } catch { return iso; }
+}
+
+function joinPath(dir, name) {
+  if (!dir || dir === ".") return name;
+  return dir.replace(/\/+$/, "") + "/" + name;
+}
+function parentPath(p) {
+  if (!p || p === ".") return ".";
+  const i = p.lastIndexOf("/");
+  return i < 0 ? "." : p.slice(0, i) || ".";
+}
+
+// ------------------ TOAST + MODAIS ------------------
+let toastTimer;
+function toast(msg, type = "") {
+  const el = document.getElementById("toast");
+  el.className = "show " + type;
+  el.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.className = ""), 3500);
+}
+function showError(err) {
+  console.error(err);
+  const msg = err instanceof ApiError ? err.message : (err.message || String(err));
+  const detail = err instanceof ApiError ? (err.detail || err.cause || "") : "";
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <h3>⚠️ Ocorreu um erro</h3>
+        <p>${escapeHtml(msg)}</p>
+        ${detail ? `<details class="tech"><summary>Detalhes técnicos</summary><pre>${escapeHtml(String(detail))}</pre></details>` : ""}
+        <div class="modal-actions">
+          <button class="primary" id="modalOk">Fechar</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById("modalOk").onclick = () => (root.innerHTML = "");
+}
+function askText(title, label, initial = "") {
+  return new Promise((resolve) => {
+    const root = document.getElementById("modalRoot");
+    root.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal">
+          <h3>${escapeHtml(title)}</h3>
+          <div class="field">
+            <label>${escapeHtml(label)}</label>
+            <input id="askInput" type="text" value="${escapeHtml(initial)}" />
+          </div>
+          <div class="modal-actions">
+            <button id="askCancel">Cancelar</button>
+            <button id="askOk" class="primary">Confirmar</button>
+          </div>
+        </div>
+      </div>`;
+    const input = document.getElementById("askInput");
+    input.focus(); input.select();
+    document.getElementById("askCancel").onclick = () => { root.innerHTML = ""; resolve(null); };
+    document.getElementById("askOk").onclick = () => { const v = input.value.trim(); root.innerHTML = ""; resolve(v || null); };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("askOk").click(); });
+  });
+}
+function confirm2(title, message) {
+  return new Promise((resolve) => {
+    const root = document.getElementById("modalRoot");
+    root.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal">
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(message)}</p>
+          <div class="modal-actions">
+            <button id="cCancel">Cancelar</button>
+            <button id="cOk" class="danger">Confirmar</button>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById("cCancel").onclick = () => { root.innerHTML = ""; resolve(false); };
+    document.getElementById("cOk").onclick = () => { root.innerHTML = ""; resolve(true); };
+  });
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// ------------------ 4. NAVEGAÇÃO + LISTA ------------------
+async function loadDir(path) {
+  try {
+    state.currentPath = path || ".";
+    state.selected = null;
+    updateSelectionButtons();
+    document.getElementById("fileList").innerHTML = `<div class="empty">Carregando...</div>`;
+    const data = await API.list(state.currentPath);
+    state.items = data.items || [];
+    renderPathBar();
+    renderList();
+    renderPreviewEmpty();
+  } catch (err) {
+    document.getElementById("fileList").innerHTML = `<div class="empty">Não foi possível carregar esta pasta.</div>`;
+    showError(err);
+  }
+}
+
+function renderPathBar() {
+  const bar = document.getElementById("pathBar");
+  const p = state.currentPath;
+  const parts = (p === "." || !p) ? [] : p.split("/").filter(Boolean);
+  let html = `<a class="crumb ${parts.length===0?"current":""}" data-path=".">🏠 Raiz</a>`;
+  let acc = "";
+  parts.forEach((seg, i) => {
+    acc = acc ? acc + "/" + seg : seg;
+    html += `<span class="sep">›</span><a class="crumb ${i===parts.length-1?"current":""}" data-path="${escapeHtml(acc)}">${escapeHtml(seg)}</a>`;
+  });
+  bar.innerHTML = html;
+  bar.querySelectorAll(".crumb").forEach(el => {
+    el.addEventListener("click", () => {
+      if (el.classList.contains("current")) return;
+      loadDir(el.getAttribute("data-path"));
+    });
+  });
+}
+
+function renderList() {
+  const list = document.getElementById("fileList");
+  if (!state.items.length) {
+    list.innerHTML = `<div class="empty">📂 Pasta vazia.</div>`;
+    return;
+  }
+  list.innerHTML = state.items.map((it, idx) => `
+    <div class="file-row" data-idx="${idx}">
+      <div class="icon">${iconFor(it)}</div>
+      <div class="name">${escapeHtml(it.name)}</div>
+      <div class="meta">${it.type === "directory" ? "—" : fmtSize(it.size)}</div>
+      <div class="meta">${fmtDate(it.modified_at)}</div>
+    </div>
+  `).join("");
+  list.querySelectorAll(".file-row").forEach(row => {
+    const idx = Number(row.getAttribute("data-idx"));
+    row.addEventListener("click", () => selectItem(idx));
+    row.addEventListener("dblclick", () => {
+      const it = state.items[idx];
+      if (it.type === "directory") loadDir(it.path);
+      else downloadItem(it);
+    });
+  });
+}
+
+function selectItem(idx) {
+  state.selected = state.items[idx];
+  document.querySelectorAll(".file-row").forEach((r, i) => r.classList.toggle("selected", i === idx));
+  updateSelectionButtons();
+  renderPreview(state.selected);
+}
+
+function updateSelectionButtons() {
+  const has = !!state.selected;
+  ["btnDownload","btnRename","btnCopy","btnCut","btnDelete","btnClearSel"].forEach(id => {
+    document.getElementById(id).disabled = !has;
+  });
+  document.getElementById("btnPaste").disabled = !state.clipboard;
+}
+
+// ------------------ 5. AÇÕES ------------------
+async function downloadItem(item) {
+  try {
+    toast("Baixando...");
+    const blob = item.type === "directory" ? await API.archive(item.path) : await API.downloadBlob(item.path);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = item.type === "directory" ? (item.name + ".zip") : item.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast("Download iniciado.", "success");
+  } catch (err) { showError(err); }
+}
+
+async function actUpload() {
+  document.getElementById("fileUploadInput").click();
+}
+document.getElementById("fileUploadInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    toast("Enviando " + file.name + "...");
+    await API.upload(state.currentPath, file);
+    toast("Arquivo enviado!", "success");
+    loadDir(state.currentPath);
+  } catch (err) { showError(err); }
+});
+
+async function actNewFolder() {
+  const name = await askText("Criar nova pasta", "Nome da nova pasta");
+  if (!name) return;
+  try {
+    await API.createFolder(joinPath(state.currentPath, name));
+    toast("Pasta criada.", "success");
+    loadDir(state.currentPath);
+  } catch (err) { showError(err); }
+}
+
+async function actRename() {
+  if (!state.selected) return;
+  const newName = await askText("Renomear", "Novo nome:", state.selected.name);
+  if (!newName || newName === state.selected.name) return;
+  try {
+    await API.rename(state.selected.path, newName);
+    toast("Renomeado.", "success");
+    loadDir(state.currentPath);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      const ok = await confirm2("Substituir item existente?", `Já existe "${newName}". Deseja substituir?`);
+      if (!ok) return;
+      try {
+        await API.rename(state.selected.path, newName, true);
+        toast("Renomeado e substituído.", "success");
+        loadDir(state.currentPath);
+      } catch (retryErr) { showError(retryErr); }
+      return;
+    }
+    showError(err);
+  }
+}
+
+async function actDelete() {
+  if (!state.selected) return;
+  const ok = await confirm2("Excluir", `Excluir "${state.selected.name}"? Esta ação não pode ser desfeita.`);
+  if (!ok) return;
+  try {
+    await API.delete(state.selected.path);
+    toast("Excluído.", "success");
+    loadDir(state.currentPath);
+  } catch (err) { showError(err); }
+}
+
+function actCopy() {
+  if (!state.selected) return;
+  state.clipboard = { mode: "copy", item: state.selected };
+  showClipboardBar();
+}
+function actCut() {
+  if (!state.selected) return;
+  state.clipboard = { mode: "move", item: state.selected };
+  showClipboardBar();
+}
+function showClipboardBar() {
+  const bar = document.getElementById("clipboardBar");
+  const txt = document.getElementById("clipboardText");
+  const c = state.clipboard;
+  if (!c) { bar.classList.add("hidden"); return; }
+  const verb = c.mode === "copy" ? "Copiar" : "Mover";
+  txt.textContent = `${verb} "${c.item.name}" — navegue até a pasta destino e clique em Colar.`;
+  bar.classList.remove("hidden");
+  updateSelectionButtons();
+}
+async function actPaste() {
+  const c = state.clipboard;
+  if (!c) return;
+  const target = joinPath(state.currentPath, c.item.name);
+  try {
+    if (c.mode === "copy") await API.copy(c.item.path, target);
+    else await API.move(c.item.path, target);
+    toast(c.mode === "copy" ? "Copiado." : "Movido.", "success");
+    state.clipboard = null;
+    showClipboardBar();
+    loadDir(state.currentPath);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      const ok = await confirm2("Substituir item existente?", `Já existe "${c.item.name}" nesta pasta. Deseja substituir?`);
+      if (!ok) return;
+      try {
+        if (c.mode === "copy") await API.copy(c.item.path, target, true);
+        else await API.move(c.item.path, target, true);
+        toast(c.mode === "copy" ? "Copiado e substituído." : "Movido e substituído.", "success");
+        state.clipboard = null;
+        showClipboardBar();
+        loadDir(state.currentPath);
+      } catch (retryErr) { showError(retryErr); }
+      return;
+    }
+    showError(err);
+  }
+}
+
+function clearSelection() {
+  state.selected = null;
+  document.querySelectorAll(".file-row.selected").forEach(r => r.classList.remove("selected"));
+  updateSelectionButtons();
+  renderPreviewEmpty();
+}
+
+// ------------------ 6. PREVIEW ------------------
+function renderPreviewEmpty() {
+  document.getElementById("previewContent").innerHTML = `
+    <h3>Selecione um item</h3>
+    <p class="hint">Clique em um arquivo ou pasta para ver detalhes e prévia aqui.</p>
+  `;
+}
+
+async function renderPreview(item) {
+  const box = document.getElementById("previewContent");
+  const isDir = item.type === "directory";
+  box.innerHTML = `
+    <h3>${iconFor(item)} ${escapeHtml(item.name)}</h3>
+    <div class="meta-line"><b>Tipo:</b> ${isDir ? "Pasta" : (ext(item.name).toUpperCase() || "Arquivo")}</div>
+    <div class="meta-line"><b>Tamanho:</b> ${isDir ? "—" : fmtSize(item.size)}</div>
+    <div class="meta-line"><b>Modificado:</b> ${fmtDate(item.modified_at)}</div>
+    <div class="meta-line"><b>Caminho:</b> ${escapeHtml(item.path)}</div>
+    <div class="preview-actions">
+      ${isDir
+        ? `<button class="primary" id="pvOpen">📂 Abrir pasta</button>
+           <button id="pvDownload">⬇️ Baixar como ZIP</button>`
+        : `<button class="primary" id="pvDownload">⬇️ Baixar</button>`}
+    </div>
+    <div class="preview-box" id="previewBox">
+      ${isDir ? "<span class='hint'>Pasta — clique em abrir para navegar.</span>" : "<span class='hint'>Carregando prévia...</span>"}
+    </div>
+  `;
+  if (isDir) {
+    document.getElementById("pvOpen").onclick = () => loadDir(item.path);
+  }
+  document.getElementById("pvDownload").onclick = () => downloadItem(item);
+
+  if (isDir) return;
+  const pv = document.getElementById("previewBox");
+  const e = ext(item.name);
+  const size = item.size || 0;
+
+  if (size > PREVIEW_MAX) {
+    pv.innerHTML = `<span class="hint">Preview indisponível: arquivo maior que ${fmtSize(PREVIEW_MAX)}.</span>`;
+    return;
+  }
+
+  const isImg = ["png","jpg","jpeg","webp","gif","bmp","svg"].includes(e);
+  const isAudio = ["mp3","wav","ogg","m4a"].includes(e);
+  const isVideo = ["mp4","webm","ogv","mov"].includes(e);
+  const isText = ["txt","md","log","csv","ini","cfg","json","js","ts","py","html","css","yml","yaml","sh","php","rb","go","rs","java","c","cpp"].includes(e);
+  const isPdf = e === "pdf";
+
+  if (!(isImg || isAudio || isVideo || isText || isPdf)) {
+    pv.innerHTML = `<span class="hint">Preview indisponível para este tipo de arquivo.</span>`;
+    return;
+  }
+
+  try {
+    const blob = await API.downloadBlob(item.path);
+    const url = URL.createObjectURL(blob);
+    if (isImg) pv.innerHTML = `<img src="${url}" alt="preview" />`;
+    else if (isAudio) pv.innerHTML = `<audio controls src="${url}"></audio>`;
+    else if (isVideo) pv.innerHTML = `<video controls src="${url}"></video>`;
+    else if (isPdf) pv.innerHTML = `<iframe src="${url}"></iframe>`;
+    else if (isText) {
+      const text = await blob.text();
+      pv.innerHTML = `<pre>${escapeHtml(text.slice(0, 200000))}</pre>`;
+    }
+  } catch (err) {
+    pv.innerHTML = `<span class="hint">Não foi possível carregar a prévia.</span>`;
+    console.error(err);
+  }
+}
+
+// ------------------ 7. ROTEAMENTO DE TELAS ------------------
+function show(screen) {
+  document.getElementById("loginScreen").classList.toggle("hidden", screen !== "login");
+  document.getElementById("appScreen").classList.toggle("hidden", screen !== "app");
+  document.getElementById("settingsScreen").classList.toggle("hidden", screen !== "settings");
+}
+
+async function updateConnStatus() {
+  const el = document.getElementById("connStatus");
+  el.innerHTML = `<span class="status-dot"></span> Verificando...`;
+  try {
+    await API.health();
+    el.innerHTML = `<span class="status-dot ok"></span> Conectado`;
+  } catch {
+    el.innerHTML = `<span class="status-dot err"></span> Offline`;
+  }
+}
+
+async function testConnection(base, token) {
+  const oldBase = state.baseUrl, oldToken = state.token;
+  try {
+    state.baseUrl = normalizeBase(base);
+    state.token = (token || "").trim();
+    await API.health();
+    toast("Conexão bem-sucedida!", "success");
+    return true;
+  } catch (err) {
+    showError(err);
+    return false;
+  } finally {
+    state.baseUrl = oldBase; state.token = oldToken;
+  }
+}
+
+// ---- LOGIN ----
+document.getElementById("loginTest").onclick = async () => {
+  const b = document.getElementById("loginBase").value;
+  const t = document.getElementById("loginToken").value;
+  if (!b || !t) return toast("Preencha o endereço e o token.", "error");
+  await testConnection(b, t);
+};
+document.getElementById("loginSave").onclick = () => {
+  try {
+    const b = normalizeBase(document.getElementById("loginBase").value);
+    const t = document.getElementById("loginToken").value.trim();
+    if (!b || !t) return toast("Preencha o endereço e o token.", "error");
+    state.baseUrl = b; state.token = t;
+    localStorage.setItem(LS_KEYS.base, b);
+    localStorage.setItem(LS_KEYS.token, t);
+    enterApp();
+  } catch (err) { showError(err); }
+};
+
+// ---- CONFIGURAÇÕES ----
+function openSettings() {
+  document.getElementById("cfgBase").value = state.baseUrl;
+  document.getElementById("cfgToken").value = state.token;
+  document.getElementById("cfgStatus").textContent = "";
+  show("settings");
+}
+document.getElementById("btnGoSettings").onclick = openSettings;
+document.getElementById("btnBackFromSettings").onclick = () => {
+  if (state.baseUrl && state.token) enterApp();
+  else show("login");
+};
+document.getElementById("cfgSave").onclick = () => {
+  try {
+    const b = normalizeBase(document.getElementById("cfgBase").value);
+    const t = document.getElementById("cfgToken").value.trim();
+    if (!b || !t) return toast("Preencha o endereço e o token.", "error");
+    state.baseUrl = b; state.token = t;
+    localStorage.setItem(LS_KEYS.base, b);
+    localStorage.setItem(LS_KEYS.token, t);
+    toast("Configurações salvas.", "success");
+  } catch (err) { showError(err); }
+};
+document.getElementById("cfgTest").onclick = async () => {
+  const b = document.getElementById("cfgBase").value;
+  const t = document.getElementById("cfgToken").value;
+  await testConnection(b, t);
+};
+document.getElementById("cfgClear").onclick = async () => {
+  const ok = await confirm2("Limpar dados salvos", "Isso removerá o endereço e o token salvos neste navegador. Continuar?");
+  if (!ok) return;
+  localStorage.removeItem(LS_KEYS.base);
+  localStorage.removeItem(LS_KEYS.token);
+  state.baseUrl = ""; state.token = "";
+  toast("Dados removidos.", "success");
+  show("login");
+  document.getElementById("loginBase").value = "";
+  document.getElementById("loginToken").value = "";
+};
+
+// ---- APP ----
+document.getElementById("btnBack").onclick = () => loadDir(parentPath(state.currentPath));
+document.getElementById("btnRoot").onclick = () => loadDir(".");
+document.getElementById("btnRefresh").onclick = () => loadDir(state.currentPath);
+document.getElementById("btnUpload").onclick = actUpload;
+document.getElementById("btnNewFolder").onclick = actNewFolder;
+document.getElementById("btnDownload").onclick = () => state.selected && downloadItem(state.selected);
+document.getElementById("btnRename").onclick = actRename;
+document.getElementById("btnDelete").onclick = actDelete;
+document.getElementById("btnCopy").onclick = actCopy;
+document.getElementById("btnCut").onclick = actCut;
+document.getElementById("btnPaste").onclick = actPaste;
+document.getElementById("btnClearSel").onclick = clearSelection;
+document.getElementById("btnClearClipboard").onclick = () => { state.clipboard = null; showClipboardBar(); };
+
+function enterApp() {
+  show("app");
+  updateConnStatus();
+  loadDir(".");
+}
+
+// ---- BOOT ----
+(function boot() {
+  document.getElementById("loginBase").value = state.baseUrl;
+  document.getElementById("loginToken").value = state.token;
+  if (state.baseUrl && state.token) enterApp();
+  else show("login");
+})();
+</script>
+</body>
+</html>
