@@ -285,22 +285,23 @@
 <div id="loginScreen" class="screen-center hidden">
   <div class="card">
     <h2>🚪 Megadoor</h2>
-    <p class="hint">Para começar, informe o endereço do servidor e o token de acesso. Esses dados ficarão salvos neste navegador.</p>
+    <p class="hint">Para começar, informe apenas o IP do servidor e o token de acesso. Esses dados ficarão salvos neste navegador.</p>
     <div class="field">
-      <label for="loginBase">Endereço do servidor (IP ou URL)</label>
-      <input id="loginBase" type="text" placeholder="Ex.: https://192.168.1.50:8443" />
-      <div class="hint">Inclua <b>https://</b> e a porta (normalmente 8443).</div>
+      <label for="loginBase">IP do servidor</label>
+      <input id="loginBase" type="text" inputmode="decimal" autocomplete="off" placeholder="Ex.: 192.168.0.34" />
+      <div class="hint">Digite somente o IP. O cliente usa automaticamente <b>https://</b> e a porta <b>8443</b>.</div>
     </div>
     <div class="field">
       <label for="loginToken">Token de acesso</label>
       <input id="loginToken" type="password" placeholder="Cole aqui o token fornecido" />
     </div>
     <div class="row" style="justify-content: space-between; margin-top: 18px;">
+      <button id="loginOpenCert">🔐 Abrir certificado</button>
       <button id="loginTest">🔌 Testar conexão</button>
       <button id="loginSave" class="primary">💾 Salvar e entrar</button>
     </div>
     <div class="hint" style="margin-top: 16px;">
-      ⚠️ Se o servidor usa certificado autoassinado, o navegador pode bloquear a conexão. Abra o endereço acima em uma nova aba e aceite o certificado antes de continuar.
+      ⚠️ Se o servidor usa certificado autoassinado, o navegador pode bloquear a conexão. Digite o IP, clique em <b>Abrir certificado</b> e aceite o acesso à página <b>https://IP:8443/health</b>.
     </div>
   </div>
 </div>
@@ -376,17 +377,21 @@
   <div class="settings-page">
     <div class="card">
       <h2>Conexão com o servidor</h2>
-      <p class="hint">Aqui você pode alterar o servidor e o token salvos neste navegador.</p>
+      <p class="hint">Aqui você pode alterar o IP do servidor e o token salvos neste navegador.</p>
       <div class="field">
-        <label for="cfgBase">Endereço do servidor</label>
-        <input id="cfgBase" type="text" placeholder="https://192.168.1.50:8443" />
+        <label for="cfgBase">IP do servidor</label>
+        <input id="cfgBase" type="text" inputmode="decimal" autocomplete="off" placeholder="192.168.0.34" />
+        <div class="hint">Digite somente o IP. Não inclua <b>https://</b> nem <b>:8443</b>.</div>
       </div>
       <div class="field">
         <label for="cfgToken">Token de acesso</label>
         <input id="cfgToken" type="password" placeholder="Token" />
       </div>
       <div class="row" style="justify-content: space-between; margin-top: 18px;">
-        <button id="cfgTest">🔌 Testar conexão</button>
+        <div class="row">
+          <button id="cfgOpenCert">🔐 Abrir certificado</button>
+          <button id="cfgTest">🔌 Testar conexão</button>
+        </div>
         <div class="row">
           <button id="cfgClear" class="danger">🗑️ Limpar dados salvos</button>
           <button id="cfgSave" class="primary">💾 Salvar</button>
@@ -455,24 +460,63 @@ document.getElementById("themeSwitch").addEventListener("change", (e) => setThem
 document.getElementById("themeSwitch2").addEventListener("change", (e) => setTheme(e.target.checked ? "dark" : "light"));
 
 // ------------------ 2. CAMADA DE API ------------------
-// Normaliza a base URL para o contrato real do servidor.
-// Se o usuario digitar apenas "192.168.0.34", usamos "https://192.168.0.34:8443".
-function normalizeBase(url) {
-  if (!url) return "";
-  let value = url.trim().replace(/\/+$/, "");
+// A tela pede apenas o IP. A URL HTTPS real e montada aqui.
+function normalizeServerIp(input) {
+  const value = String(input || "").trim();
+
   if (!value) return "";
-  if (!/^https?:\/\//i.test(value)) value = "https://" + value;
+
+  if (/^https?:\/\//i.test(value) || value.includes("/") || value.includes(":")) {
+    throw new ApiError("Digite apenas o IP do servidor, sem https://, sem barras e sem :8443. Exemplo: 192.168.0.34.");
+  }
+
+  const parts = value.split(".");
+  const validIPv4 = parts.length === 4 && parts.every((part) => {
+    if (!/^\d{1,3}$/.test(part)) return false;
+    const number = Number(part);
+    return number >= 0 && number <= 255 && String(number) === String(Number(part));
+  });
+
+  if (!validIPv4) {
+    throw new ApiError("IP inválido. Use quatro números separados por ponto. Exemplo: 192.168.0.34.");
+  }
+
+  return parts.map((part) => String(Number(part))).join(".");
+}
+
+function buildBaseUrlFromIp(input) {
+  const ip = normalizeServerIp(input);
+  return ip ? `https://${ip}:${DEFAULT_SERVER_PORT}` : "";
+}
+
+function displayIpFromBaseUrl(baseUrl) {
+  if (!baseUrl) return "";
 
   try {
-    const parsed = new URL(value);
-    if (!parsed.port) parsed.port = DEFAULT_SERVER_PORT;
-    parsed.pathname = parsed.pathname.replace(/\/+$/, "");
-    parsed.search = "";
-    parsed.hash = "";
-    return parsed.toString().replace(/\/+$/, "");
+    return new URL(baseUrl).hostname;
   } catch {
-    throw new ApiError("Endereço do servidor inválido. Use algo como 192.168.0.34 ou https://192.168.0.34:8443.");
+    return baseUrl
+      .replace(/^https?:\/\//i, "")
+      .replace(/:\d+.*$/, "")
+      .replace(/\/.*$/, "");
   }
+}
+
+function migrateSavedServerAddress() {
+  if (!state.baseUrl) return;
+
+  try {
+    state.baseUrl = buildBaseUrlFromIp(displayIpFromBaseUrl(state.baseUrl));
+    localStorage.setItem(LS_KEYS.base, state.baseUrl);
+  } catch {
+    state.baseUrl = "";
+    localStorage.removeItem(LS_KEYS.base);
+  }
+}
+
+function migrateSavedToken() {
+  state.token = String(state.token || "").trim();
+  if (state.token) localStorage.setItem(LS_KEYS.token, state.token);
 }
 
 // Erro amigável mapeado a partir da resposta HTTP.
@@ -517,7 +561,7 @@ async function apiRequest(pathname, { method = "GET", form = null } = {}) {
     res = await fetch(url, opts);
   } catch (err) {
     throw new ApiError(
-      "Não foi possível conectar ao servidor pelo navegador. Verifique IP, porta 8443, certificado HTTPS aceito no navegador e CORS habilitado no servidor.",
+      "Não foi possível conectar ao servidor pelo navegador. Verifique se o IP está correto, se o servidor foi reiniciado, se o certificado HTTPS foi aceito neste navegador e se o CORS está habilitado no FastAPI.",
       { cause: String(err) }
     );
   }
@@ -1041,7 +1085,7 @@ async function updateConnStatus() {
 async function testConnection(base, token) {
   const oldBase = state.baseUrl, oldToken = state.token;
   try {
-    state.baseUrl = normalizeBase(base);
+    state.baseUrl = buildBaseUrlFromIp(base);
     state.token = (token || "").trim();
     await API.health();
     toast("Conexão bem-sucedida!", "success");
@@ -1054,18 +1098,30 @@ async function testConnection(base, token) {
   }
 }
 
+function openCertificatePage(ipInput) {
+  try {
+    const baseUrl = buildBaseUrlFromIp(ipInput);
+    if (!baseUrl) return toast("Informe o IP do servidor primeiro.", "error");
+    window.open(`${baseUrl}/health`, "_blank", "noopener,noreferrer");
+    toast("Aceite o certificado na aba aberta e depois volte para testar a conexão.");
+  } catch (err) { showError(err); }
+}
+
 // ---- LOGIN ----
+document.getElementById("loginOpenCert").onclick = () => {
+  openCertificatePage(document.getElementById("loginBase").value);
+};
 document.getElementById("loginTest").onclick = async () => {
   const b = document.getElementById("loginBase").value;
   const t = document.getElementById("loginToken").value;
-  if (!b || !t) return toast("Preencha o endereço e o token.", "error");
+  if (!b || !t) return toast("Preencha o IP e o token.", "error");
   await testConnection(b, t);
 };
 document.getElementById("loginSave").onclick = () => {
   try {
-    const b = normalizeBase(document.getElementById("loginBase").value);
+    const b = buildBaseUrlFromIp(document.getElementById("loginBase").value);
     const t = document.getElementById("loginToken").value.trim();
-    if (!b || !t) return toast("Preencha o endereço e o token.", "error");
+    if (!b || !t) return toast("Preencha o IP e o token.", "error");
     state.baseUrl = b; state.token = t;
     localStorage.setItem(LS_KEYS.base, b);
     localStorage.setItem(LS_KEYS.token, t);
@@ -1075,7 +1131,7 @@ document.getElementById("loginSave").onclick = () => {
 
 // ---- CONFIGURAÇÕES ----
 function openSettings() {
-  document.getElementById("cfgBase").value = state.baseUrl;
+  document.getElementById("cfgBase").value = displayIpFromBaseUrl(state.baseUrl);
   document.getElementById("cfgToken").value = state.token;
   document.getElementById("cfgStatus").textContent = "";
   show("settings");
@@ -1087,9 +1143,9 @@ document.getElementById("btnBackFromSettings").onclick = () => {
 };
 document.getElementById("cfgSave").onclick = () => {
   try {
-    const b = normalizeBase(document.getElementById("cfgBase").value);
+    const b = buildBaseUrlFromIp(document.getElementById("cfgBase").value);
     const t = document.getElementById("cfgToken").value.trim();
-    if (!b || !t) return toast("Preencha o endereço e o token.", "error");
+    if (!b || !t) return toast("Preencha o IP e o token.", "error");
     state.baseUrl = b; state.token = t;
     localStorage.setItem(LS_KEYS.base, b);
     localStorage.setItem(LS_KEYS.token, t);
@@ -1101,8 +1157,11 @@ document.getElementById("cfgTest").onclick = async () => {
   const t = document.getElementById("cfgToken").value;
   await testConnection(b, t);
 };
+document.getElementById("cfgOpenCert").onclick = () => {
+  openCertificatePage(document.getElementById("cfgBase").value);
+};
 document.getElementById("cfgClear").onclick = async () => {
-  const ok = await confirm2("Limpar dados salvos", "Isso removerá o endereço e o token salvos neste navegador. Continuar?");
+  const ok = await confirm2("Limpar dados salvos", "Isso removerá o IP e o token salvos neste navegador. Continuar?");
   if (!ok) return;
   localStorage.removeItem(LS_KEYS.base);
   localStorage.removeItem(LS_KEYS.token);
@@ -1136,7 +1195,9 @@ function enterApp() {
 
 // ---- BOOT ----
 (function boot() {
-  document.getElementById("loginBase").value = state.baseUrl;
+  migrateSavedServerAddress();
+  migrateSavedToken();
+  document.getElementById("loginBase").value = displayIpFromBaseUrl(state.baseUrl);
   document.getElementById("loginToken").value = state.token;
   if (state.baseUrl && state.token) enterApp();
   else show("login");
