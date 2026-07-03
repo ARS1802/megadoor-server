@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Megadoor — Navegador de Arquivos</title>
+<title>Mega Arquivos</title>
 <style>
   /* ============ TEMA / DESIGN SYSTEM ============ */
   :root {
@@ -20,6 +20,8 @@
     --danger: #dc2626;
     --success: #16a34a;
     --warning: #d97706;
+    --accent: #ec4899;
+    --electric: #06b6d4;
     --shadow: 0 2px 8px rgba(0,0,0,.06);
   }
   html.dark {
@@ -36,6 +38,8 @@
     --danger: #ef4444;
     --success: #22c55e;
     --warning: #f59e0b;
+    --accent: #f472b6;
+    --electric: #22d3ee;
     --shadow: 0 2px 10px rgba(0,0,0,.4);
   }
   * { box-sizing: border-box; }
@@ -60,8 +64,14 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
   }
-  button:hover:not(:disabled) { background: var(--hover); }
+  button:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--hover), color-mix(in srgb, var(--primary) 14%, var(--panel)));
+    transform: translateY(-3px) scale(1.025);
+    box-shadow: 0 10px 24px rgba(37,99,235,.18);
+  }
+  button:active:not(:disabled) { transform: translateY(0) scale(.96); }
   button:disabled { opacity: .5; cursor: not-allowed; }
   button.primary {
     background: var(--primary);
@@ -80,7 +90,45 @@
     outline: none;
   }
   input:focus { border-color: var(--primary); }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--primary);
+  }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  @keyframes softSlideIn {
+    from { opacity: 0; transform: translateY(22px) scale(.94); filter: saturate(1.8); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes panelLift {
+    from { opacity: 0; transform: translateY(32px) scale(.9); filter: saturate(1.8); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes drawerIn {
+    from { transform: translateX(-105%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes stripeMove {
+    from { background-position: 0 0; }
+    to { background-position: 38px 0; }
+  }
+  @keyframes rainbowSweep {
+    from { background-position: 0% 50%; }
+    to { background-position: 200% 50%; }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 rgba(37,99,235,0); }
+    50% { box-shadow: 0 0 0 12px rgba(37,99,235,.2); }
+  }
+  @keyframes dropPulse {
+    0%, 100% { transform: scale(.965); opacity: .78; filter: hue-rotate(0deg); }
+    50% { transform: scale(1.03); opacity: 1; filter: hue-rotate(45deg); }
+  }
+  @keyframes rowColorPop {
+    0% { box-shadow: inset 0 0 0 var(--primary); }
+    45% { box-shadow: inset 7px 0 0 var(--accent), 0 10px 24px rgba(236,72,153,.18); }
+    100% { box-shadow: inset 3px 0 0 var(--primary); }
+  }
 
   /* ============ LAYOUT ============ */
   .topbar {
@@ -91,6 +139,15 @@
     background: var(--panel);
     border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 5;
+  }
+  .topbar::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, var(--primary), var(--accent), var(--electric), var(--primary));
+    background-size: 220% 100%;
+    animation: rainbowSweep 2.6s linear infinite;
+    opacity: .75;
   }
   .topbar h1 {
     font-size: 20px; margin: 0; display: flex; align-items: center; gap: 8px;
@@ -114,10 +171,100 @@
   .switch input:checked + .track::after { transform: translateX(20px); }
 
   .toolbar {
-    display: flex; flex-wrap: wrap; gap: 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 0;
     padding: 12px 18px;
     background: var(--panel-2);
     border-bottom: 1px solid var(--border);
+  }
+  .toolbar-file-area {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+  .toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .toolbar-row-primary { justify-content: flex-start; }
+  .toolbar-row-secondary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+  }
+  .toolbar-nav {
+    grid-column: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .toolbar-edit {
+    grid-column: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-left: auto;
+    min-width: 0;
+  }
+  .nav-button svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  .upload-menu-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+  .upload-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    min-width: 220px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 8px;
+    z-index: 20;
+    animation: panelLift .2s ease both;
+  }
+  .upload-menu button {
+    width: 100%;
+    justify-content: flex-start;
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .upload-menu button:hover:not(:disabled) {
+    transform: none;
+  }
+  @media (max-width: 900px) {
+    .toolbar { grid-template-columns: 1fr; }
+    .toolbar-row-secondary { min-height: 0; }
+    .toolbar-row-secondary {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .toolbar-nav {
+      order: -1;
+      width: 100%;
+    }
+    .toolbar-edit {
+      width: 100%;
+      margin-left: 0;
+      justify-content: flex-start;
+    }
   }
   .path-bar {
     display: flex; align-items: center; gap: 6px;
@@ -143,7 +290,7 @@
     display: grid;
     grid-template-columns: 1fr 380px;
     gap: 0;
-    height: calc(100vh - 170px);
+    height: calc(100vh - 220px);
   }
   @media (max-width: 900px) {
     .main { grid-template-columns: 1fr; height: auto; }
@@ -162,9 +309,19 @@
     padding: 14px 18px;
     border-bottom: 1px solid var(--border);
     cursor: pointer;
+    animation: softSlideIn .36s cubic-bezier(.2,.9,.2,1.2) both;
+    transition: background .18s ease, transform .18s ease, box-shadow .18s ease, filter .18s ease;
   }
-  .file-row:hover { background: var(--hover); }
-  .file-row.selected { background: var(--selected); }
+  .file-row:hover {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 18%, var(--hover)), var(--hover));
+    transform: translateX(8px) scale(1.01);
+    filter: saturate(1.25);
+  }
+  .file-row.selected {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 28%, var(--selected)), var(--selected));
+    box-shadow: inset 3px 0 0 var(--primary);
+    animation: rowColorPop .42s ease both;
+  }
   .file-row .icon { font-size: 26px; text-align: center; }
   .file-row .name { font-weight: 500; word-break: break-word; }
   .file-row .meta { color: var(--muted); font-size: 14px; }
@@ -226,6 +383,7 @@
     background: var(--panel); border: 1px solid var(--border);
     border-radius: 14px; padding: 28px; max-width: 520px; width: 100%;
     box-shadow: var(--shadow);
+    animation: panelLift .42s cubic-bezier(.2,.9,.2,1.12) both;
   }
   .card h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; }
   .field { margin: 14px 0; }
@@ -235,6 +393,38 @@
   .settings-page {
     max-width: 720px; margin: 20px auto; padding: 0 18px;
   }
+
+  .drawer-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.36);
+    z-index: 80; opacity: 1; transition: opacity .2s ease;
+  }
+  .settings-drawer {
+    position: fixed; inset: 0 auto 0 0; width: min(360px, 92vw);
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    z-index: 90;
+    padding: 18px;
+    transform: translateX(-105%);
+    transition: transform .24s cubic-bezier(.2,.8,.2,1);
+  }
+  .settings-drawer.open { transform: translateX(0); animation: drawerIn .32s cubic-bezier(.2,.9,.2,1.12) both; }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  .drawer-head h2 { margin: 0; font-size: 20px; }
+  .drawer-action, .drawer-option {
+    width: 100%;
+    justify-content: flex-start;
+    margin: 8px 0;
+  }
+  .drawer-option {
+    display: block;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .drawer-option label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+  .range-value { color: var(--muted); font-size: 14px; margin-top: 8px; }
 
   /* ============ TOAST / DIÁLOGO ============ */
   #toast {
@@ -276,6 +466,99 @@
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     flex-wrap: wrap;
   }
+
+  .drop-overlay {
+    position: fixed; inset: 16px; z-index: 70;
+    display: none; align-items: center; justify-content: center;
+    border: 3px dashed var(--primary);
+    border-radius: 18px;
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--panel) 70%, var(--primary)),
+      color-mix(in srgb, var(--panel) 70%, var(--accent)),
+      color-mix(in srgb, var(--panel) 70%, var(--electric)));
+    pointer-events: none;
+    animation: dropPulse .9s ease-in-out infinite;
+  }
+  .drop-overlay.active { display: flex; }
+  .drop-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 30px;
+    box-shadow: var(--shadow);
+    text-align: center;
+    animation: panelLift .34s cubic-bezier(.2,.9,.2,1.15) both;
+  }
+  .drop-card strong { display: block; font-size: 22px; margin-bottom: 6px; }
+
+  .transfer-panel {
+    position: fixed; right: 18px; bottom: 18px; width: min(440px, calc(100vw - 36px));
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    z-index: 75;
+    overflow: hidden;
+    animation: panelLift .28s ease both;
+  }
+  .transfer-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .transfer-title { font-weight: 700; flex: 1; }
+  .transfer-list { max-height: 280px; overflow: auto; padding: 10px; }
+  .transfer-item {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-left: 6px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: var(--panel);
+  }
+  .transfer-item.queued { opacity: .72; border-left-color: var(--muted); }
+  .transfer-item.running {
+    opacity: 1;
+    border-left-color: var(--primary);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 10%, var(--panel)), var(--panel));
+  }
+  .transfer-item.done {
+    border-left-color: var(--success);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--success) 12%, var(--panel)), var(--panel));
+  }
+  .transfer-item.error {
+    border-left-color: var(--danger);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--danger) 12%, var(--panel)), var(--panel));
+  }
+  .transfer-line { display: flex; align-items: center; gap: 8px; }
+  .transfer-name {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 600;
+  }
+  .transfer-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .progress-track {
+    height: 8px; border-radius: 999px; overflow: hidden;
+    background: var(--border);
+    margin-top: 8px;
+  }
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    min-width: 8px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--primary), var(--accent), var(--electric));
+    background-size: 220% 100%;
+    transition: width .22s ease;
+  }
+  .progress-bar.indeterminate {
+    width: 42%;
+  }
+  .transfer-panel.minimized .transfer-list,
+  .transfer-panel.minimized .transfer-extra { display: none; }
+  .transfer-panel.minimized { width: min(320px, calc(100vw - 36px)); }
+  .aggregate-progress { padding: 10px 14px 14px; }
+
   .hidden { display: none !important; }
 </style>
 </head>
@@ -284,7 +567,7 @@
 <!-- ============ TELA DE PRIMEIRO ACESSO ============ -->
 <div id="loginScreen" class="screen-center hidden">
   <div class="card">
-    <h2>🚪 Megadoor</h2>
+    <h2>Megadoor</h2>
     <p class="hint">Para começar, informe apenas o IP do servidor e o token de acesso. Esses dados ficarão salvos neste navegador.</p>
     <div class="field">
       <label for="loginBase">IP do servidor</label>
@@ -309,7 +592,7 @@
 <!-- ============ APP PRINCIPAL ============ -->
 <div id="appScreen" class="hidden">
   <div class="topbar">
-    <h1>🚪 Megadoor</h1>
+    <h1>Megadoor</h1>
     <span id="connStatus" class="hint"><span class="status-dot"></span> Verificando...</span>
     <div class="spacer"></div>
     <label class="switch" title="Alternar tema">
@@ -322,19 +605,50 @@
 
   <!-- Barra de ferramentas -->
   <div class="toolbar" id="toolbar">
-    <button id="btnBack" title="Voltar para pasta anterior">⬅️ Voltar</button>
-    <button id="btnRoot" title="Ir para a raiz">🏠 Raiz</button>
-    <button id="btnRefresh" title="Atualizar lista">🔄 Atualizar</button>
-    <button id="btnUpload" class="primary">⬆️ Enviar arquivo</button>
-    <button id="btnNewFolder">📁 Criar pasta</button>
-    <button id="btnDownload" disabled>⬇️ Baixar</button>
-    <button id="btnRename" disabled>✏️ Renomear</button>
-    <button id="btnCopy" disabled>📋 Copiar</button>
-    <button id="btnCut" disabled>✂️ Mover</button>
-    <button id="btnPaste" disabled>📌 Colar</button>
-    <button id="btnDelete" class="danger" disabled>🗑️ Excluir</button>
-    <button id="btnClearSel" disabled>❌ Cancelar seleção</button>
-    <input id="fileUploadInput" type="file" style="display:none" />
+    <div class="toolbar-file-area">
+      <div class="toolbar-row toolbar-row-primary">
+        <div class="upload-menu-wrap">
+          <button id="btnUpload" class="primary">Enviar arquivos</button>
+          <div id="uploadMenu" class="upload-menu hidden">
+            <button id="btnUploadFiles">Selecionar arquivos</button>
+            <button id="btnUploadDirectory">Selecionar pasta</button>
+          </div>
+        </div>
+        <button id="btnNewFolder">Criar pasta</button>
+        <button id="btnDownload" disabled>Baixar</button>
+        <button id="btnDelete" class="danger" disabled>Excluir</button>
+      </div>
+
+      <div class="toolbar-row toolbar-row-secondary">
+        <div class="toolbar-nav">
+          <button id="btnBack" class="nav-button" title="Voltar para pasta anterior">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /><path d="M9 12h11" /></svg>
+            <span>Voltar</span>
+          </button>
+          <button id="btnForward" class="nav-button" title="Avançar para pasta seguinte">
+            <span>Avançar</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6" /><path d="M4 12h11" /></svg>
+          </button>
+          <button id="btnRoot" class="nav-button" title="Ir para home">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5" /><path d="M5.5 10.5V20h13v-9.5" /><path d="M9.5 20v-6h5v6" /></svg>
+            <span>Home</span>
+          </button>
+          <button id="btnRefresh" class="nav-button" title="Atualizar lista">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M18.2 9A7 7 0 0 0 6.6 6.7L4 9" /><path d="M5.8 15A7 7 0 0 0 17.4 17.3L20 15" /></svg>
+            <span>Atualizar</span>
+          </button>
+        </div>
+        <div class="toolbar-edit">
+          <button id="btnRename" disabled>Renomear</button>
+          <button id="btnCopy" disabled>Copiar</button>
+          <button id="btnCut" disabled>Mover</button>
+          <button id="btnPaste" disabled>Colar</button>
+          <button id="btnClearSel" disabled>Cancelar seleção</button>
+        </div>
+      </div>
+    </div>
+    <input id="fileUploadInput" type="file" multiple style="display:none" />
+    <input id="dirUploadInput" type="file" webkitdirectory directory multiple style="display:none" />
   </div>
 
   <div id="clipboardBar" class="clipboard-info hidden">
@@ -364,49 +678,63 @@
 <!-- ============ TELA DE CONFIGURAÇÕES ============ -->
 <div id="settingsScreen" class="hidden">
   <div class="topbar">
+    <button id="btnSettingsMenu">☰ Menu</button>
     <h1>⚙️ Configurações</h1>
     <div class="spacer"></div>
-    <label class="switch">
-      <input id="themeSwitch2" type="checkbox" />
-      <span class="track"></span>
-      <span>🌙</span>
-    </label>
     <button id="btnBackFromSettings">⬅️ Voltar</button>
   </div>
 
+  <div id="settingsDrawerBackdrop" class="drawer-backdrop hidden"></div>
+  <aside id="settingsDrawer" class="settings-drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <h2>Menu</h2>
+      <button id="btnCloseSettingsMenu">✕</button>
+    </div>
+    <button id="btnEditCredentials" class="drawer-action">🔑 Alterar IP ou TOKEN</button>
+    <div class="drawer-option">
+      <label for="themeSwitch2">
+        <span>Darkmode</span>
+        <span class="switch">
+          <input id="themeSwitch2" type="checkbox" />
+          <span class="track"></span>
+        </span>
+      </label>
+    </div>
+    <div class="drawer-option">
+      <label for="previewSizeSlider">
+        <span>Preview file size</span>
+        <span id="previewSizeValue" class="range-value"></span>
+      </label>
+      <input id="previewSizeSlider" type="range" min="25" max="1250" step="25" />
+    </div>
+  </aside>
+
   <div class="settings-page">
     <div class="card">
-      <h2>Conexão com o servidor</h2>
-      <p class="hint">Aqui você pode alterar o IP do servidor e o token salvos neste navegador.</p>
-      <div class="field">
-        <label for="cfgBase">IP do servidor</label>
-        <input id="cfgBase" type="text" inputmode="decimal" autocomplete="off" placeholder="192.168.0.34" />
-        <div class="hint">Digite somente o IP. Não inclua <b>https://</b> nem <b>:8443</b>.</div>
-      </div>
-      <div class="field">
-        <label for="cfgToken">Token de acesso</label>
-        <input id="cfgToken" type="password" placeholder="Token" />
-      </div>
-      <div class="row" style="justify-content: space-between; margin-top: 18px;">
-        <div class="row">
-          <button id="cfgOpenCert">🔐 Abrir certificado</button>
-          <button id="cfgTest">🔌 Testar conexão</button>
-        </div>
-        <div class="row">
-          <button id="cfgClear" class="danger">🗑️ Limpar dados salvos</button>
-          <button id="cfgSave" class="primary">💾 Salvar</button>
-        </div>
+      <h2>Megadoor</h2>
+      <p class="hint">Cliente web para acessar os arquivos compartilhados pelo servidor.</p>
+      <div class="row" style="margin-top: 18px;">
+        <button id="cfgOpenCert">🔐 Abrir certificado</button>
+        <button id="cfgTest">🔌 Testar conexão</button>
+        <button id="cfgClear" class="danger">🗑️ Limpar dados salvos</button>
       </div>
       <div id="cfgStatus" class="hint" style="margin-top: 14px;"></div>
     </div>
 
     <div class="card" style="margin-top: 18px;">
-      <h2>Sobre</h2>
-      <p class="hint">Cliente web para o servidor <b>megadoor-server</b>. Todos os dados são armazenados apenas no seu navegador (localStorage). Nenhuma informação é enviada para terceiros.</p>
+      <h2>Preferências</h2>
+      <p class="hint">Use o menu para ajustar aparência, credenciais e limite de pré-visualização.</p>
     </div>
   </div>
 </div>
 
+<div id="dropOverlay" class="drop-overlay">
+  <div class="drop-card">
+    <strong>Solte para enviar</strong>
+    <span class="hint">Os arquivos serão enviados para a pasta atual.</span>
+  </div>
+</div>
+<div id="transferPanel" class="transfer-panel hidden"></div>
 <div id="toast"></div>
 <div id="modalRoot"></div>
 
@@ -429,10 +757,14 @@ const LS_KEYS = {
   base:  "megadoor.baseUrl",
   token: "megadoor.token",
   theme: "megadoor.theme",
+  previewMaxMb: "megadoor.previewMaxMb",
 };
 
 const DEFAULT_SERVER_PORT = "8443";
-const PREVIEW_MAX = 5 * 1024 * 1024; // 5 MB
+const MIN_PREVIEW_MB = 25;
+const MAX_PREVIEW_MB = 1250;
+const DEFAULT_PREVIEW_MB = 25;
+const TRANSFER_CONCURRENCY = 1;
 
 const state = {
   baseUrl: localStorage.getItem(LS_KEYS.base) || "",
@@ -440,15 +772,29 @@ const state = {
   currentPath: ".",
   items: [],
   selected: null,           // FileItem selecionado
-  clipboard: null,          // { mode: "copy"|"move", item: FileItem }
+  selectedIndexes: new Set(),
+  lastSelectedIndex: null,
+  backStack: [],
+  forwardStack: [],
+  clipboard: null,          // { mode: "copy"|"move", items: FileItem[] }
+  transfers: [],
+  transferPanelMinimized: false,
+  transferIdSeq: 1,
+  dragDepth: 0,
+  previewMaxMb: readPreviewMaxMb(),
 };
 
 // ------------------ TEMA ------------------
+function setCheckedIfExists(id, checked) {
+  const el = document.getElementById(id);
+  if (el) el.checked = checked;
+}
+
 function applyTheme(theme) {
   if (theme === "dark") document.documentElement.classList.add("dark");
   else document.documentElement.classList.remove("dark");
-  document.getElementById("themeSwitch").checked = theme === "dark";
-  document.getElementById("themeSwitch2").checked = theme === "dark";
+  setCheckedIfExists("themeSwitch", theme === "dark");
+  setCheckedIfExists("themeSwitch2", theme === "dark");
 }
 function setTheme(theme) {
   localStorage.setItem(LS_KEYS.theme, theme);
@@ -458,6 +804,38 @@ applyTheme(localStorage.getItem(LS_KEYS.theme) || "light");
 
 document.getElementById("themeSwitch").addEventListener("change", (e) => setTheme(e.target.checked ? "dark" : "light"));
 document.getElementById("themeSwitch2").addEventListener("change", (e) => setTheme(e.target.checked ? "dark" : "light"));
+
+function readPreviewMaxMb() {
+  const raw = Number(localStorage.getItem(LS_KEYS.previewMaxMb) || DEFAULT_PREVIEW_MB);
+  if (!Number.isFinite(raw)) return DEFAULT_PREVIEW_MB;
+  return Math.min(MAX_PREVIEW_MB, Math.max(MIN_PREVIEW_MB, raw));
+}
+
+function previewMaxBytes() {
+  return state.previewMaxMb * 1024 * 1024;
+}
+
+function setPreviewMaxMb(value) {
+  const mb = Math.min(MAX_PREVIEW_MB, Math.max(MIN_PREVIEW_MB, Number(value) || DEFAULT_PREVIEW_MB));
+  state.previewMaxMb = mb;
+  localStorage.setItem(LS_KEYS.previewMaxMb, String(mb));
+  syncPreviewControls();
+  if (state.selected && selectedItems().length === 1) renderPreview(state.selected);
+}
+
+function formatPreviewLimit(mb) {
+  if (mb >= 1000) {
+    return `${(mb / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} GB`;
+  }
+  return `${mb} MB`;
+}
+
+function syncPreviewControls() {
+  const slider = document.getElementById("previewSizeSlider");
+  const value = document.getElementById("previewSizeValue");
+  if (slider) slider.value = String(state.previewMaxMb);
+  if (value) value.textContent = formatPreviewLimit(state.previewMaxMb);
+}
 
 // ------------------ 2. CAMADA DE API ------------------
 // A tela pede apenas o IP. A URL HTTPS real e montada aqui.
@@ -580,6 +958,58 @@ async function apiRequest(pathname, { method = "GET", form = null } = {}) {
   return res;
 }
 
+function apiXhr(pathname, { method = "GET", form = null, responseType = "json", trackUpload = false, onProgress = null } = {}) {
+  ensureConfigured();
+
+  const url = state.baseUrl.replace(/\/+$/, "") + pathname;
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.responseType = responseType === "blob" ? "blob" : "text";
+    xhr.setRequestHeader("Authorization", "Bearer " + state.token.trim());
+    xhr.setRequestHeader("Accept", "application/json, application/octet-stream, */*");
+
+    const progressTarget = trackUpload ? xhr.upload : xhr;
+    progressTarget.onprogress = (event) => {
+      if (!onProgress) return;
+      onProgress({
+        loaded: event.loaded || 0,
+        total: event.lengthComputable ? event.total : 0,
+        lengthComputable: event.lengthComputable,
+      });
+    };
+
+    xhr.onerror = () => reject(new ApiError(
+      "Não foi possível conectar ao servidor pelo navegador. Verifique IP, certificado HTTPS, servidor ativo e CORS.",
+      { cause: "XMLHttpRequest network error" }
+    ));
+
+    xhr.onload = async () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (responseType === "blob") return resolve(xhr.response);
+        try {
+          return resolve(JSON.parse(xhr.responseText || "{}"));
+        } catch {
+          return resolve(xhr.responseText);
+        }
+      }
+
+      let detail = "";
+      try {
+        if (xhr.response instanceof Blob) detail = await xhr.response.text();
+        else detail = xhr.responseText || "";
+        const parsed = JSON.parse(detail);
+        detail = parsed.detail || JSON.stringify(parsed);
+      } catch {}
+
+      reject(new ApiError(friendlyStatus(xhr.status, detail), { status: xhr.status, detail }));
+    };
+
+    xhr.send(form);
+  });
+}
+
 function friendlyStatus(status, detail) {
   switch (status) {
     case 401: return "Token inválido ou ausente. Vá em Configurações e verifique o token.";
@@ -622,11 +1052,27 @@ const API = {
       form: makeForm({ path }),
     }).then(r => r.blob());
   },
+  downloadBlobWithProgress: (path, onProgress) => {
+    return apiXhr("/api/download", {
+      method: "POST",
+      form: makeForm({ path }),
+      responseType: "blob",
+      onProgress,
+    });
+  },
   archive: (path) => {
     return apiRequest("/api/archive", {
       method: "POST",
       form: makeForm({ path: path || "." }),
     }).then(r => r.blob());
+  },
+  archiveWithProgress: (path, onProgress) => {
+    return apiXhr("/api/archive", {
+      method: "POST",
+      form: makeForm({ path: path || "." }),
+      responseType: "blob",
+      onProgress,
+    });
   },
   createFolder: (path) => {
     return apiRequest("/api/folders", {
@@ -639,6 +1085,18 @@ const API = {
     form.append("path", path || ".");
     form.append("file", file);
     return apiRequest("/api/upload", { method: "POST", form }).then(r => r.json());
+  },
+  uploadWithProgress: (path, file, onProgress) => {
+    const form = new FormData();
+    form.append("path", path || ".");
+    form.append("file", file);
+    return apiXhr("/api/upload", {
+      method: "POST",
+      form,
+      responseType: "json",
+      trackUpload: true,
+      onProgress,
+    });
   },
   delete: (path) => {
     return apiRequest("/api/delete", {
@@ -787,12 +1245,274 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 
+// ------------------ TRANSFERÊNCIAS ------------------
+function createTransfer(kind, name, status = "queued") {
+  const transfer = {
+    id: state.transferIdSeq++,
+    kind,
+    name,
+    status,
+    progress: 0,
+    loaded: 0,
+    total: 0,
+    indeterminate: true,
+    message: status === "queued" ? "Aguardando" : (kind === "upload" ? "Enviando" : "Baixando"),
+  };
+  state.transfers.push(transfer);
+  state.transferPanelMinimized = false;
+  renderTransferPanel();
+  return transfer.id;
+}
+
+function updateTransfer(id, patch) {
+  const transfer = state.transfers.find((item) => item.id === id);
+  if (!transfer) return;
+  Object.assign(transfer, patch);
+  updateTransferRow(transfer);
+  syncTransferPanel();
+}
+
+function updateTransferProgress(id, event) {
+  const loaded = event.loaded || 0;
+  const total = event.total || 0;
+  const indeterminate = !event.lengthComputable || !total;
+  const progress = indeterminate ? 12 : Math.min(99, Math.round((loaded / total) * 100));
+  updateTransfer(id, { loaded, total, progress, indeterminate });
+}
+
+function startTransfer(id) {
+  const transfer = state.transfers.find((item) => item.id === id);
+  const message = transfer?.kind === "upload" ? "Enviando" : "Baixando";
+  updateTransfer(id, { status: "running", message, progress: 0, loaded: 0, total: 0, indeterminate: true });
+}
+
+function finishTransfer(id, message = "Concluído") {
+  updateTransfer(id, { status: "done", progress: 100, indeterminate: false, message });
+}
+
+function failTransfer(id, err) {
+  const message = err instanceof ApiError ? err.message : "Falhou";
+  updateTransfer(id, { status: "error", indeterminate: false, message });
+}
+
+function aggregateTransferProgress() {
+  if (!state.transfers.length) return 0;
+  const total = state.transfers.reduce((sum, item) => {
+    const progress = Math.min(100, Math.max(0, Number(item.progress) || 0));
+    return sum + progress;
+  }, 0);
+  return Math.round(total / state.transfers.length);
+}
+
+function transferMeta(transfer) {
+  if (transfer.status === "queued") return "Aguardando";
+  if (transfer.status === "done") return "Concluído";
+  if (transfer.status === "error") return "Erro";
+  if (transfer.indeterminate) return transfer.message;
+  return `${transfer.progress}% · ${fmtSize(transfer.loaded)} de ${fmtSize(transfer.total)}`;
+}
+
+function ensureTransferPanelShell() {
+  const panel = document.getElementById("transferPanel");
+  if (!panel || panel.dataset.ready === "true") return panel;
+
+  panel.innerHTML = `
+    <div class="transfer-head">
+      <span class="status-dot" data-transfer-status-dot></span>
+      <span class="transfer-title" data-transfer-title>Transferências</span>
+      <button data-transfer-action="clear">Limpar</button>
+      <button data-transfer-action="toggle">—</button>
+    </div>
+    <div class="aggregate-progress">
+      <div class="progress-track"><div class="progress-bar" data-transfer-aggregate style="width:4%"></div></div>
+    </div>
+    <div class="transfer-list" data-transfer-list></div>
+  `;
+  panel.dataset.ready = "true";
+
+  panel.querySelector('[data-transfer-action="toggle"]').onclick = () => {
+    state.transferPanelMinimized = !state.transferPanelMinimized;
+    syncTransferPanel();
+  };
+  panel.querySelector('[data-transfer-action="clear"]').onclick = () => {
+    state.transfers = state.transfers.filter((item) => item.status === "running" || item.status === "queued");
+    panel.querySelectorAll(".transfer-item").forEach((row) => {
+      const transfer = state.transfers.find((item) => String(item.id) === row.dataset.transferId);
+      if (!transfer) row.remove();
+    });
+    syncTransferPanel();
+  };
+
+  return panel;
+}
+
+function ensureTransferRow(transfer) {
+  const panel = ensureTransferPanelShell();
+  if (!panel) return null;
+
+  let row = panel.querySelector(`[data-transfer-id="${transfer.id}"]`);
+  if (row) return row;
+
+  row = document.createElement("div");
+  row.className = "transfer-item";
+  row.dataset.transferId = String(transfer.id);
+  row.innerHTML = `
+    <div class="transfer-line">
+      <span data-transfer-icon>${transfer.kind === "upload" ? "⬆️" : "⬇️"}</span>
+      <span class="transfer-name" data-transfer-name title="${escapeHtml(transfer.name)}">${escapeHtml(transfer.name)}</span>
+      <span class="transfer-meta" data-transfer-meta></span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-bar" data-transfer-progress style="width:4%"></div>
+    </div>
+  `;
+  panel.querySelector("[data-transfer-list]").appendChild(row);
+  return row;
+}
+
+function updateTransferRow(transfer) {
+  const row = ensureTransferRow(transfer);
+  if (!row) return;
+
+  const meta = row.querySelector("[data-transfer-meta]");
+  const bar = row.querySelector("[data-transfer-progress]");
+  row.classList.toggle("queued", transfer.status === "queued");
+  row.classList.toggle("running", transfer.status === "running");
+  row.classList.toggle("done", transfer.status === "done");
+  row.classList.toggle("error", transfer.status === "error");
+  meta.textContent = transferMeta(transfer);
+  bar.style.width = `${Math.max(transfer.progress, 4)}%`;
+  bar.classList.toggle("indeterminate", transfer.indeterminate && transfer.status === "running");
+}
+
+function syncTransferPanel() {
+  const panel = ensureTransferPanelShell();
+  if (!panel) return;
+
+  if (!state.transfers.length) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  const activeCount = state.transfers.filter((item) => item.status === "running").length;
+  const queuedCount = state.transfers.filter((item) => item.status === "queued").length;
+  const aggregate = aggregateTransferProgress();
+  panel.classList.remove("hidden");
+  panel.classList.toggle("minimized", state.transferPanelMinimized);
+  panel.querySelector("[data-transfer-status-dot]").classList.toggle("ok", activeCount > 0);
+  panel.querySelector("[data-transfer-title]").textContent = activeCount
+    ? `${activeCount} em andamento${queuedCount ? ` · ${queuedCount} na fila` : ""}`
+    : (queuedCount ? `${queuedCount} na fila` : "Transferências");
+  panel.querySelector("[data-transfer-aggregate]").style.width = `${aggregate}%`;
+  panel.querySelector('[data-transfer-action="toggle"]').textContent = state.transferPanelMinimized ? "▣" : "—";
+  panel.querySelector('[data-transfer-action="clear"]').disabled = state.transfers.every((item) => item.status === "running" || item.status === "queued");
+}
+
+function renderTransferPanel() {
+  ensureTransferPanelShell();
+  state.transfers.forEach(updateTransferRow);
+  syncTransferPanel();
+}
+
+async function runLimited(tasks, limit = TRANSFER_CONCURRENCY) {
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, async () => {
+    while (cursor < tasks.length) {
+      const task = tasks[cursor++];
+      await task();
+    }
+  });
+  await Promise.all(workers);
+}
+
 // ------------------ 4. NAVEGAÇÃO + LISTA ------------------
+function selectedItems() {
+  return Array.from(state.selectedIndexes)
+    .sort((a, b) => a - b)
+    .map((idx) => state.items[idx])
+    .filter(Boolean);
+}
+
+function normalizeSharedPath(path) {
+  const clean = String(path || ".").trim();
+  return clean && clean !== "/" ? clean : ".";
+}
+
+function updateNavigationButtons() {
+  const backButton = document.getElementById("btnBack");
+  const forwardButton = document.getElementById("btnForward");
+  if (backButton) backButton.disabled = state.backStack.length === 0;
+  if (forwardButton) forwardButton.disabled = state.forwardStack.length === 0;
+}
+
+async function navigateTo(path, { record = true, clearForward = true } = {}) {
+  const target = normalizeSharedPath(path);
+  const current = normalizeSharedPath(state.currentPath);
+
+  if (target === current) {
+    await loadDir(target);
+    return;
+  }
+
+  if (record) {
+    state.backStack.push(current);
+    if (clearForward) state.forwardStack = [];
+  }
+
+  await loadDir(target);
+  updateNavigationButtons();
+}
+
+async function goHistoryBack() {
+  if (!state.backStack.length) return;
+  const previous = state.backStack.pop();
+  state.forwardStack.push(normalizeSharedPath(state.currentPath));
+  await navigateTo(previous, { record: false, clearForward: false });
+}
+
+async function goHistoryForward() {
+  if (!state.forwardStack.length) return;
+  const next = state.forwardStack.pop();
+  state.backStack.push(normalizeSharedPath(state.currentPath));
+  await navigateTo(next, { record: false, clearForward: false });
+}
+
+function setSelection(indexes, primaryIndex = null) {
+  const normalizedIndexes = indexes.filter((idx) => idx >= 0 && idx < state.items.length);
+  const resolvedPrimary = normalizedIndexes.includes(primaryIndex)
+    ? primaryIndex
+    : normalizedIndexes[normalizedIndexes.length - 1] ?? null;
+  state.selectedIndexes = new Set(normalizedIndexes);
+  state.lastSelectedIndex = resolvedPrimary;
+  state.selected = state.lastSelectedIndex == null ? null : state.items[state.lastSelectedIndex] || null;
+  document.querySelectorAll(".file-row").forEach((row) => {
+    const idx = Number(row.getAttribute("data-idx"));
+    row.classList.toggle("selected", state.selectedIndexes.has(idx));
+  });
+  updateSelectionButtons();
+
+  const items = selectedItems();
+  if (!items.length) renderPreviewEmpty();
+  else if (items.length === 1) renderPreview(items[0]);
+  else renderPreviewMultiple(items);
+
+  if (state.lastSelectedIndex != null) {
+    requestAnimationFrame(() => {
+      document
+        .querySelector(`.file-row[data-idx="${state.lastSelectedIndex}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  }
+}
+
 async function loadDir(path) {
   try {
-    state.currentPath = path || ".";
+    state.currentPath = normalizeSharedPath(path);
     state.selected = null;
+    state.selectedIndexes = new Set();
+    state.lastSelectedIndex = null;
     updateSelectionButtons();
+    updateNavigationButtons();
     document.getElementById("fileList").innerHTML = `<div class="empty">Carregando...</div>`;
     const data = await API.list(state.currentPath);
     state.items = data.items || [];
@@ -809,7 +1529,7 @@ function renderPathBar() {
   const bar = document.getElementById("pathBar");
   const p = state.currentPath;
   const parts = (p === "." || !p) ? [] : p.split("/").filter(Boolean);
-  let html = `<a class="crumb ${parts.length===0?"current":""}" data-path=".">🏠 Raiz</a>`;
+  let html = `<a class="crumb ${parts.length===0?"current":""}" data-path=".">🏠 Home</a>`;
   let acc = "";
   parts.forEach((seg, i) => {
     acc = acc ? acc + "/" + seg : seg;
@@ -819,7 +1539,7 @@ function renderPathBar() {
   bar.querySelectorAll(".crumb").forEach(el => {
     el.addEventListener("click", () => {
       if (el.classList.contains("current")) return;
-      loadDir(el.getAttribute("data-path"));
+      navigateTo(el.getAttribute("data-path"));
     });
   });
 }
@@ -831,7 +1551,7 @@ function renderList() {
     return;
   }
   list.innerHTML = state.items.map((it, idx) => `
-    <div class="file-row" data-idx="${idx}">
+    <div class="file-row ${state.selectedIndexes.has(idx) ? "selected" : ""}" data-idx="${idx}" style="animation-delay:${Math.min(idx * 18, 180)}ms">
       <div class="icon">${iconFor(it)}</div>
       <div class="name">${escapeHtml(it.name)}</div>
       <div class="meta">${it.type === "directory" ? "—" : fmtSize(it.size)}</div>
@@ -840,58 +1560,421 @@ function renderList() {
   `).join("");
   list.querySelectorAll(".file-row").forEach(row => {
     const idx = Number(row.getAttribute("data-idx"));
-    row.addEventListener("click", () => selectItem(idx));
+    row.addEventListener("click", (event) => selectItem(idx, event));
     row.addEventListener("dblclick", () => {
       const it = state.items[idx];
-      if (it.type === "directory") loadDir(it.path);
-      else downloadItem(it);
+      if (it.type === "directory") navigateTo(it.path);
+      else downloadItems([it]);
     });
   });
 }
 
-function selectItem(idx) {
-  state.selected = state.items[idx];
-  document.querySelectorAll(".file-row").forEach((r, i) => r.classList.toggle("selected", i === idx));
-  updateSelectionButtons();
-  renderPreview(state.selected);
+function selectItem(idx, event = null) {
+  const isRange = event?.shiftKey && state.lastSelectedIndex != null;
+  const isToggle = event?.ctrlKey || event?.metaKey;
+
+  if (isRange) {
+    const start = Math.min(state.lastSelectedIndex, idx);
+    const end = Math.max(state.lastSelectedIndex, idx);
+    const indexes = new Set(state.selectedIndexes);
+    for (let i = start; i <= end; i++) indexes.add(i);
+    setSelection(Array.from(indexes), idx);
+    return;
+  }
+
+  if (isToggle) {
+    const indexes = new Set(state.selectedIndexes);
+    if (indexes.has(idx)) indexes.delete(idx);
+    else indexes.add(idx);
+    setSelection(Array.from(indexes), idx);
+    return;
+  }
+
+  setSelection([idx], idx);
 }
 
 function updateSelectionButtons() {
-  const has = !!state.selected;
-  ["btnDownload","btnRename","btnCopy","btnCut","btnDelete","btnClearSel"].forEach(id => {
+  const count = state.selectedIndexes.size;
+  const has = count > 0;
+  ["btnDownload","btnCopy","btnCut","btnDelete","btnClearSel"].forEach(id => {
     document.getElementById(id).disabled = !has;
   });
+  document.getElementById("btnRename").disabled = count !== 1;
   document.getElementById("btnPaste").disabled = !state.clipboard;
 }
 
+function isAppVisible() {
+  return !document.getElementById("appScreen").classList.contains("hidden");
+}
+
+function isModalOpen() {
+  return document.getElementById("modalRoot").innerHTML.trim() !== "";
+}
+
+function isEditableTarget(target) {
+  return target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+    || target?.isContentEditable;
+}
+
+function moveKeyboardSelection(delta, extend = false) {
+  if (!state.items.length) return;
+
+  const fallback = delta >= 0 ? 0 : state.items.length - 1;
+  const current = state.lastSelectedIndex == null ? fallback - delta : state.lastSelectedIndex;
+  const next = Math.min(state.items.length - 1, Math.max(0, current + delta));
+
+  if (extend && state.lastSelectedIndex != null) {
+    const existing = new Set(state.selectedIndexes);
+    const start = Math.min(state.lastSelectedIndex, next);
+    const end = Math.max(state.lastSelectedIndex, next);
+    for (let index = start; index <= end; index++) existing.add(index);
+    setSelection(Array.from(existing), next);
+    return;
+  }
+
+  setSelection([next], next);
+}
+
+function selectKeyboardEdge(edge, extend = false) {
+  if (!state.items.length) return;
+  const target = edge === "start" ? 0 : state.items.length - 1;
+
+  if (extend && state.lastSelectedIndex != null) {
+    const start = Math.min(state.lastSelectedIndex, target);
+    const end = Math.max(state.lastSelectedIndex, target);
+    const indexes = [];
+    for (let index = start; index <= end; index++) indexes.push(index);
+    setSelection(indexes, target);
+    return;
+  }
+
+  setSelection([target], target);
+}
+
+function openFocusedItem() {
+  const items = selectedItems();
+  if (items.length !== 1) return;
+
+  const item = items[0];
+  if (item.type === "directory") navigateTo(item.path);
+  else downloadItems([item]);
+}
+
+function navigateToParent() {
+  const parent = parentPath(state.currentPath);
+  if (parent !== state.currentPath) navigateTo(parent);
+}
+
+function handleFileKeyboard(event) {
+  if (!isAppVisible() || isModalOpen() || isEditableTarget(event.target)) return;
+
+  if (event.key === "Escape" && isUploadMenuOpen()) {
+    event.preventDefault();
+    closeUploadMenu();
+    return;
+  }
+
+  if (event.altKey && event.key === "ArrowLeft") {
+    event.preventDefault();
+    goHistoryBack();
+    return;
+  }
+
+  if (event.altKey && event.key === "ArrowRight") {
+    event.preventDefault();
+    goHistoryForward();
+    return;
+  }
+
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    setSelection(state.items.map((_, index) => index), state.items.length ? state.items.length - 1 : null);
+    return;
+  }
+
+  switch (event.key) {
+    case "ArrowDown":
+      event.preventDefault();
+      moveKeyboardSelection(1, event.shiftKey);
+      break;
+    case "ArrowUp":
+      event.preventDefault();
+      moveKeyboardSelection(-1, event.shiftKey);
+      break;
+    case "Home":
+      event.preventDefault();
+      selectKeyboardEdge("start", event.shiftKey);
+      break;
+    case "End":
+      event.preventDefault();
+      selectKeyboardEdge("end", event.shiftKey);
+      break;
+    case "ArrowRight":
+    case "Enter":
+      event.preventDefault();
+      openFocusedItem();
+      break;
+    case "ArrowLeft":
+    case "Backspace":
+      event.preventDefault();
+      navigateToParent();
+      break;
+    case "Delete":
+      if (selectedItems().length) {
+        event.preventDefault();
+        actDelete();
+      }
+      break;
+    case "F2":
+      if (selectedItems().length === 1) {
+        event.preventDefault();
+        actRename();
+      }
+      break;
+    case "Escape":
+      event.preventDefault();
+      clearSelection();
+      break;
+  }
+}
+
 // ------------------ 5. AÇÕES ------------------
-async function downloadItem(item) {
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function downloadFilenameFor(item) {
+  const filename = item.type === "directory" ? (item.name + ".zip") : item.name;
+  return filename.replace(/[\\/\x00]/g, "_").trim() || "download";
+}
+
+async function downloadItem(item, { showModal = true, transferId = null } = {}) {
+  const filename = downloadFilenameFor(item);
+  const id = transferId ?? createTransfer("download", filename, "queued");
+  startTransfer(id);
   try {
-    toast("Baixando...");
-    const blob = item.type === "directory" ? await API.archive(item.path) : await API.downloadBlob(item.path);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = item.type === "directory" ? (item.name + ".zip") : item.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast("Download iniciado.", "success");
-  } catch (err) { showError(err); }
+    const blob = item.type === "directory"
+      ? await API.archiveWithProgress(item.path, (event) => updateTransferProgress(id, event))
+      : await API.downloadBlobWithProgress(item.path, (event) => updateTransferProgress(id, event));
+    triggerBlobDownload(blob, filename);
+    finishTransfer(id, "Download pronto");
+    return true;
+  } catch (err) {
+    failTransfer(id, err);
+    if (showModal) showError(err);
+    return false;
+  }
+}
+
+async function downloadItems(items) {
+  if (!items.length) return;
+
+  const jobs = items.map((item) => ({
+    item,
+    transferId: createTransfer("download", downloadFilenameFor(item), "queued"),
+  }));
+
+  let firstFailure = null;
+  await runLimited(jobs.map((job) => async () => {
+    const ok = await downloadItem(job.item, {
+      showModal: false,
+      transferId: job.transferId,
+    });
+    if (!ok && !firstFailure) firstFailure = new ApiError(`Falha ao baixar "${job.item.name}".`);
+  }));
+  if (firstFailure) showError(firstFailure);
 }
 
 async function actUpload() {
+  toggleUploadMenu();
+}
+
+function closeUploadMenu() {
+  document.getElementById("uploadMenu").classList.add("hidden");
+}
+
+function isUploadMenuOpen() {
+  return !document.getElementById("uploadMenu").classList.contains("hidden");
+}
+
+function toggleUploadMenu() {
+  document.getElementById("uploadMenu").classList.toggle("hidden");
+}
+
+function actUploadFiles() {
+  closeUploadMenu();
   document.getElementById("fileUploadInput").click();
 }
-document.getElementById("fileUploadInput").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  e.target.value = "";
-  if (!file) return;
+
+function actUploadFolder() {
+  closeUploadMenu();
+  document.getElementById("dirUploadInput").click();
+}
+
+function normalizeRelativeUploadPath(path) {
+  return String(path || "").replace(/\\/g, "/").replace(/^\/+/, "");
+}
+
+function uploadTargetDirFor(relativePath) {
+  const normalized = normalizeRelativeUploadPath(relativePath);
+  const parts = normalized.split("/").filter(Boolean);
+  parts.pop();
+  if (!parts.length) return state.currentPath;
+  return joinPath(state.currentPath, parts.join("/"));
+}
+
+function uploadEntriesFromFiles(files) {
+  return Array.from(files || []).map((file) => ({
+    file,
+    relativePath: normalizeRelativeUploadPath(file.webkitRelativePath || file.name),
+  }));
+}
+
+async function uploadEntry(entry, { showModal = true, transferId = null } = {}) {
+  const name = entry.relativePath || entry.file.name;
+  const id = transferId ?? createTransfer("upload", name, "queued");
+  startTransfer(id);
   try {
-    toast("Enviando " + file.name + "...");
-    await API.upload(state.currentPath, file);
-    toast("Arquivo enviado!", "success");
-    loadDir(state.currentPath);
-  } catch (err) { showError(err); }
+    await API.uploadWithProgress(
+      uploadTargetDirFor(name),
+      entry.file,
+      (event) => updateTransferProgress(id, event)
+    );
+    finishTransfer(id, "Enviado");
+    return true;
+  } catch (err) {
+    failTransfer(id, err);
+    if (showModal) showError(err);
+    return false;
+  }
+}
+
+async function startUploads(entries) {
+  const cleanEntries = entries.filter((entry) => entry?.file);
+  if (!cleanEntries.length) return;
+
+  const jobs = cleanEntries.map((entry) => ({
+    entry,
+    transferId: createTransfer("upload", entry.relativePath || entry.file.name, "queued"),
+  }));
+
+  let firstFailure = null;
+  await runLimited(jobs.map((job) => async () => {
+    const ok = await uploadEntry(job.entry, {
+      showModal: false,
+      transferId: job.transferId,
+    });
+    if (!ok && !firstFailure) firstFailure = new ApiError(`Falha ao enviar "${job.entry.relativePath || job.entry.file.name}".`);
+  }));
+
+  if (firstFailure) showError(firstFailure);
+  loadDir(state.currentPath);
+}
+
+document.getElementById("fileUploadInput").addEventListener("change", async (e) => {
+  const entries = uploadEntriesFromFiles(e.target.files);
+  e.target.value = "";
+  await startUploads(entries);
+});
+
+document.getElementById("dirUploadInput").addEventListener("change", async (e) => {
+  const entries = uploadEntriesFromFiles(e.target.files);
+  e.target.value = "";
+  await startUploads(entries);
+});
+
+function hasFileDrag(event) {
+  return Array.from(event.dataTransfer?.types || []).includes("Files");
+}
+
+function appIsVisible() {
+  return !document.getElementById("appScreen").classList.contains("hidden");
+}
+
+function setDropOverlay(active) {
+  document.getElementById("dropOverlay").classList.toggle("active", active);
+}
+
+function readEntryFile(entry) {
+  return new Promise((resolve, reject) => entry.file(resolve, reject));
+}
+
+function readAllDirectoryEntries(reader) {
+  return new Promise((resolve, reject) => {
+    const entries = [];
+    const readBatch = () => {
+      reader.readEntries((batch) => {
+        if (!batch.length) return resolve(entries);
+        entries.push(...batch);
+        readBatch();
+      }, reject);
+    };
+    readBatch();
+  });
+}
+
+async function traverseDroppedEntry(entry, parentPath = "") {
+  if (entry.isFile) {
+    const file = await readEntryFile(entry);
+    return [{ file, relativePath: normalizeRelativeUploadPath(parentPath + file.name) }];
+  }
+
+  if (!entry.isDirectory) return [];
+
+  const dirPath = parentPath + entry.name + "/";
+  const children = await readAllDirectoryEntries(entry.createReader());
+  const nested = await Promise.all(children.map((child) => traverseDroppedEntry(child, dirPath)));
+  return nested.flat();
+}
+
+async function uploadEntriesFromDrop(dataTransfer) {
+  const items = Array.from(dataTransfer.items || []);
+  const entries = [];
+
+  for (const item of items) {
+    const entry = item.webkitGetAsEntry?.();
+    if (entry) entries.push(...await traverseDroppedEntry(entry));
+  }
+
+  if (entries.length) return entries;
+  return uploadEntriesFromFiles(dataTransfer.files);
+}
+
+window.addEventListener("dragenter", (event) => {
+  if (!appIsVisible() || !hasFileDrag(event)) return;
+  event.preventDefault();
+  state.dragDepth += 1;
+  setDropOverlay(true);
+});
+
+window.addEventListener("dragover", (event) => {
+  if (!appIsVisible() || !hasFileDrag(event)) return;
+  event.preventDefault();
+});
+
+window.addEventListener("dragleave", (event) => {
+  if (!appIsVisible() || !hasFileDrag(event)) return;
+  event.preventDefault();
+  state.dragDepth = Math.max(0, state.dragDepth - 1);
+  if (state.dragDepth === 0) setDropOverlay(false);
+});
+
+window.addEventListener("drop", async (event) => {
+  if (!appIsVisible() || !hasFileDrag(event)) return;
+  event.preventDefault();
+  state.dragDepth = 0;
+  setDropOverlay(false);
+  const entries = await uploadEntriesFromDrop(event.dataTransfer);
+  await startUploads(entries);
 });
 
 async function actNewFolder() {
@@ -905,11 +1988,13 @@ async function actNewFolder() {
 }
 
 async function actRename() {
-  if (!state.selected) return;
-  const newName = await askText("Renomear", "Novo nome:", state.selected.name);
-  if (!newName || newName === state.selected.name) return;
+  const items = selectedItems();
+  if (items.length !== 1) return;
+  const item = items[0];
+  const newName = await askText("Renomear", "Novo nome:", item.name);
+  if (!newName || newName === item.name) return;
   try {
-    await API.rename(state.selected.path, newName);
+    await API.rename(item.path, newName);
     toast("Renomeado.", "success");
     loadDir(state.currentPath);
   } catch (err) {
@@ -917,7 +2002,7 @@ async function actRename() {
       const ok = await confirm2("Substituir item existente?", `Já existe "${newName}". Deseja substituir?`);
       if (!ok) return;
       try {
-        await API.rename(state.selected.path, newName, true);
+        await API.rename(item.path, newName, true);
         toast("Renomeado e substituído.", "success");
         loadDir(state.currentPath);
       } catch (retryErr) { showError(retryErr); }
@@ -928,24 +2013,28 @@ async function actRename() {
 }
 
 async function actDelete() {
-  if (!state.selected) return;
-  const ok = await confirm2("Excluir", `Excluir "${state.selected.name}"? Esta ação não pode ser desfeita.`);
+  const items = selectedItems();
+  if (!items.length) return;
+  const label = items.length === 1 ? `"${items[0].name}"` : `${items.length} itens`;
+  const ok = await confirm2("Excluir", `Excluir ${label}? Esta ação não pode ser desfeita.`);
   if (!ok) return;
   try {
-    await API.delete(state.selected.path);
+    for (const item of items) await API.delete(item.path);
     toast("Excluído.", "success");
     loadDir(state.currentPath);
   } catch (err) { showError(err); }
 }
 
 function actCopy() {
-  if (!state.selected) return;
-  state.clipboard = { mode: "copy", item: state.selected };
+  const items = selectedItems();
+  if (!items.length) return;
+  state.clipboard = { mode: "copy", items };
   showClipboardBar();
 }
 function actCut() {
-  if (!state.selected) return;
-  state.clipboard = { mode: "move", item: state.selected };
+  const items = selectedItems();
+  if (!items.length) return;
+  state.clipboard = { mode: "move", items };
   showClipboardBar();
 }
 function showClipboardBar() {
@@ -954,28 +2043,34 @@ function showClipboardBar() {
   const c = state.clipboard;
   if (!c) { bar.classList.add("hidden"); return; }
   const verb = c.mode === "copy" ? "Copiar" : "Mover";
-  txt.textContent = `${verb} "${c.item.name}" — navegue até a pasta destino e clique em Colar.`;
+  const label = c.items.length === 1 ? `"${c.items[0].name}"` : `${c.items.length} itens`;
+  txt.textContent = `${verb} ${label} — navegue até a pasta destino e clique em Colar.`;
   bar.classList.remove("hidden");
   updateSelectionButtons();
 }
 async function actPaste() {
   const c = state.clipboard;
   if (!c) return;
-  const target = joinPath(state.currentPath, c.item.name);
   try {
-    if (c.mode === "copy") await API.copy(c.item.path, target);
-    else await API.move(c.item.path, target);
+    for (const item of c.items) {
+      const target = joinPath(state.currentPath, item.name);
+      if (c.mode === "copy") await API.copy(item.path, target);
+      else await API.move(item.path, target);
+    }
     toast(c.mode === "copy" ? "Copiado." : "Movido.", "success");
     state.clipboard = null;
     showClipboardBar();
     loadDir(state.currentPath);
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {
-      const ok = await confirm2("Substituir item existente?", `Já existe "${c.item.name}" nesta pasta. Deseja substituir?`);
+      const ok = await confirm2("Substituir item existente?", "Já existe um ou mais itens nesta pasta. Deseja substituir?");
       if (!ok) return;
       try {
-        if (c.mode === "copy") await API.copy(c.item.path, target, true);
-        else await API.move(c.item.path, target, true);
+        for (const item of c.items) {
+          const target = joinPath(state.currentPath, item.name);
+          if (c.mode === "copy") await API.copy(item.path, target, true);
+          else await API.move(item.path, target, true);
+        }
         toast(c.mode === "copy" ? "Copiado e substituído." : "Movido e substituído.", "success");
         state.clipboard = null;
         showClipboardBar();
@@ -989,9 +2084,7 @@ async function actPaste() {
 
 function clearSelection() {
   state.selected = null;
-  document.querySelectorAll(".file-row.selected").forEach(r => r.classList.remove("selected"));
-  updateSelectionButtons();
-  renderPreviewEmpty();
+  setSelection([]);
 }
 
 // ------------------ 6. PREVIEW ------------------
@@ -1000,6 +2093,27 @@ function renderPreviewEmpty() {
     <h3>Selecione um item</h3>
     <p class="hint">Clique em um arquivo ou pasta para ver detalhes e prévia aqui.</p>
   `;
+}
+
+function renderPreviewMultiple(items) {
+  const files = items.filter((item) => item.type !== "directory");
+  const folders = items.length - files.length;
+  const totalSize = files.reduce((sum, item) => sum + (item.size || 0), 0);
+  document.getElementById("previewContent").innerHTML = `
+    <h3>📦 ${items.length} itens selecionados</h3>
+    <div class="meta-line"><b>Arquivos:</b> ${files.length}</div>
+    <div class="meta-line"><b>Pastas:</b> ${folders}</div>
+    <div class="meta-line"><b>Tamanho visível:</b> ${fmtSize(totalSize)}</div>
+    <div class="preview-actions">
+      <button class="primary" id="pvDownloadMany">⬇️ Baixar selecionados</button>
+      <button class="danger" id="pvDeleteMany">🗑️ Excluir selecionados</button>
+    </div>
+    <div class="preview-box">
+      <span class="hint">${items.map((item) => escapeHtml(item.name)).slice(0, 8).join("<br>")}</span>
+    </div>
+  `;
+  document.getElementById("pvDownloadMany").onclick = () => downloadItems(items);
+  document.getElementById("pvDeleteMany").onclick = actDelete;
 }
 
 async function renderPreview(item) {
@@ -1022,17 +2136,18 @@ async function renderPreview(item) {
     </div>
   `;
   if (isDir) {
-    document.getElementById("pvOpen").onclick = () => loadDir(item.path);
+    document.getElementById("pvOpen").onclick = () => navigateTo(item.path);
   }
-  document.getElementById("pvDownload").onclick = () => downloadItem(item);
+  document.getElementById("pvDownload").onclick = () => downloadItems([item]);
 
   if (isDir) return;
   const pv = document.getElementById("previewBox");
   const e = ext(item.name);
   const size = item.size || 0;
+  const limit = previewMaxBytes();
 
-  if (size > PREVIEW_MAX) {
-    pv.innerHTML = `<span class="hint">Preview indisponível: arquivo maior que ${fmtSize(PREVIEW_MAX)}.</span>`;
+  if (size > limit) {
+    pv.innerHTML = `<span class="hint">Preview indisponível: arquivo maior que ${fmtSize(limit)}.</span>`;
     return;
   }
 
@@ -1069,6 +2184,8 @@ function show(screen) {
   document.getElementById("loginScreen").classList.toggle("hidden", screen !== "login");
   document.getElementById("appScreen").classList.toggle("hidden", screen !== "app");
   document.getElementById("settingsScreen").classList.toggle("hidden", screen !== "settings");
+  if (screen !== "settings") closeSettingsDrawer();
+  if (screen !== "app") setDropOverlay(false);
 }
 
 async function updateConnStatus() {
@@ -1130,35 +2247,47 @@ document.getElementById("loginSave").onclick = () => {
 };
 
 // ---- CONFIGURAÇÕES ----
+function openSettingsDrawer() {
+  syncPreviewControls();
+  document.getElementById("settingsDrawer").classList.add("open");
+  document.getElementById("settingsDrawer").setAttribute("aria-hidden", "false");
+  document.getElementById("settingsDrawerBackdrop").classList.remove("hidden");
+}
+
+function closeSettingsDrawer() {
+  const drawer = document.getElementById("settingsDrawer");
+  const backdrop = document.getElementById("settingsDrawerBackdrop");
+  if (!drawer || !backdrop) return;
+  drawer.classList.remove("open");
+  drawer.setAttribute("aria-hidden", "true");
+  backdrop.classList.add("hidden");
+}
+
 function openSettings() {
-  document.getElementById("cfgBase").value = displayIpFromBaseUrl(state.baseUrl);
-  document.getElementById("cfgToken").value = state.token;
   document.getElementById("cfgStatus").textContent = "";
   show("settings");
+  openSettingsDrawer();
 }
 document.getElementById("btnGoSettings").onclick = openSettings;
+document.getElementById("btnSettingsMenu").onclick = openSettingsDrawer;
+document.getElementById("btnCloseSettingsMenu").onclick = closeSettingsDrawer;
+document.getElementById("settingsDrawerBackdrop").onclick = closeSettingsDrawer;
+document.getElementById("btnEditCredentials").onclick = () => {
+  closeSettingsDrawer();
+  document.getElementById("loginBase").value = displayIpFromBaseUrl(state.baseUrl);
+  document.getElementById("loginToken").value = state.token;
+  show("login");
+};
 document.getElementById("btnBackFromSettings").onclick = () => {
   if (state.baseUrl && state.token) enterApp();
   else show("login");
 };
-document.getElementById("cfgSave").onclick = () => {
-  try {
-    const b = buildBaseUrlFromIp(document.getElementById("cfgBase").value);
-    const t = document.getElementById("cfgToken").value.trim();
-    if (!b || !t) return toast("Preencha o IP e o token.", "error");
-    state.baseUrl = b; state.token = t;
-    localStorage.setItem(LS_KEYS.base, b);
-    localStorage.setItem(LS_KEYS.token, t);
-    toast("Configurações salvas.", "success");
-  } catch (err) { showError(err); }
-};
 document.getElementById("cfgTest").onclick = async () => {
-  const b = document.getElementById("cfgBase").value;
-  const t = document.getElementById("cfgToken").value;
-  await testConnection(b, t);
+  if (!state.baseUrl || !state.token) return toast("Informe IP e token primeiro.", "error");
+  await testConnection(displayIpFromBaseUrl(state.baseUrl), state.token);
 };
 document.getElementById("cfgOpenCert").onclick = () => {
-  openCertificatePage(document.getElementById("cfgBase").value);
+  openCertificatePage(displayIpFromBaseUrl(state.baseUrl));
 };
 document.getElementById("cfgClear").onclick = async () => {
   const ok = await confirm2("Limpar dados salvos", "Isso removerá o IP e o token salvos neste navegador. Continuar?");
@@ -1171,14 +2300,25 @@ document.getElementById("cfgClear").onclick = async () => {
   document.getElementById("loginBase").value = "";
   document.getElementById("loginToken").value = "";
 };
+document.getElementById("previewSizeSlider").addEventListener("input", (event) => {
+  setPreviewMaxMb(event.target.value);
+});
 
 // ---- APP ----
-document.getElementById("btnBack").onclick = () => loadDir(parentPath(state.currentPath));
-document.getElementById("btnRoot").onclick = () => loadDir(".");
+document.addEventListener("keydown", handleFileKeyboard);
+document.addEventListener("click", (event) => {
+  const uploadWrap = document.querySelector(".upload-menu-wrap");
+  if (uploadWrap && !uploadWrap.contains(event.target)) closeUploadMenu();
+});
+document.getElementById("btnBack").onclick = goHistoryBack;
+document.getElementById("btnForward").onclick = goHistoryForward;
+document.getElementById("btnRoot").onclick = () => navigateTo(".");
 document.getElementById("btnRefresh").onclick = () => loadDir(state.currentPath);
 document.getElementById("btnUpload").onclick = actUpload;
+document.getElementById("btnUploadFiles").onclick = actUploadFiles;
+document.getElementById("btnUploadDirectory").onclick = actUploadFolder;
 document.getElementById("btnNewFolder").onclick = actNewFolder;
-document.getElementById("btnDownload").onclick = () => state.selected && downloadItem(state.selected);
+document.getElementById("btnDownload").onclick = () => downloadItems(selectedItems());
 document.getElementById("btnRename").onclick = actRename;
 document.getElementById("btnDelete").onclick = actDelete;
 document.getElementById("btnCopy").onclick = actCopy;
@@ -1190,6 +2330,9 @@ document.getElementById("btnClearClipboard").onclick = () => { state.clipboard =
 function enterApp() {
   show("app");
   updateConnStatus();
+  state.backStack = [];
+  state.forwardStack = [];
+  updateNavigationButtons();
   loadDir(".");
 }
 
@@ -1197,6 +2340,7 @@ function enterApp() {
 (function boot() {
   migrateSavedServerAddress();
   migrateSavedToken();
+  syncPreviewControls();
   document.getElementById("loginBase").value = displayIpFromBaseUrl(state.baseUrl);
   document.getElementById("loginToken").value = state.token;
   if (state.baseUrl && state.token) enterApp();
