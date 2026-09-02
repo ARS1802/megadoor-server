@@ -27,14 +27,68 @@ function Install-WingetPackage {
         $winget = Get-Command winget -ErrorAction SilentlyContinue
     }
     if (-not $winget) {
-        throw "${DisplayName} esta ausente e o winget nao foi encontrado. Instale o App Installer pela Microsoft Store ou instale $DisplayName manualmente."
+        Write-Warning "${DisplayName} esta ausente e o winget nao foi encontrado."
+        return $false
     }
 
     Write-Host "$DisplayName nao foi encontrado. Instalando com winget..."
     & $winget.Source install --id $PackageId --exact --silent --disable-interactivity `
-        --accept-package-agreements --accept-source-agreements
+        --accept-package-agreements --accept-source-agreements | Out-Host
     if ($LASTEXITCODE -ne 0) {
-        throw "Falha ao instalar $DisplayName com winget (codigo $LASTEXITCODE)."
+        Write-Warning "Falha ao instalar $DisplayName com winget (codigo $LASTEXITCODE)."
+        return $false
+    }
+
+    return $true
+}
+
+function Install-OpenSslFromOfficialSource {
+    $hashManifestUrl = "https://raw.githubusercontent.com/slproweb/opensslhashes/master/win32_openssl_hashes.json"
+    $tempInstaller = $null
+
+    try {
+        Write-Host "Baixando o instalador oficial do OpenSSL..."
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $manifest = Invoke-RestMethod -Uri $hashManifestUrl -ErrorAction Stop
+        $architecture = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") { "ARM" } else { "INTEL" }
+        $bits = if ([Environment]::Is64BitOperatingSystem) { 64 } else { 32 }
+
+        $installer = $manifest.files.PSObject.Properties |
+            ForEach-Object { $_.Value } |
+            Where-Object {
+                $_.arch -eq $architecture -and
+                $_.bits -eq $bits -and
+                $_.light -eq $true -and
+                $_.installer -eq "exe"
+            } |
+            Sort-Object @{ Expression = { [version]$_.basever }; Descending = $true } |
+            Select-Object -First 1
+
+        if (-not $installer) {
+            throw "Nao encontrei um instalador OpenSSL Light compativel com esta arquitetura."
+        }
+        if ($installer.url -notmatch "^https://slproweb\\.com/download/") {
+            throw "A URL do instalador OpenSSL nao pertence ao fornecedor oficial."
+        }
+
+        $tempInstaller = Join-Path $env:TEMP ([IO.Path]::GetFileName($installer.url))
+        Invoke-WebRequest -Uri $installer.url -OutFile $tempInstaller -UseBasicParsing -ErrorAction Stop
+
+        $actualHash = (Get-FileHash -Path $tempInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -ne $installer.sha256.ToLowerInvariant()) {
+            throw "A verificacao SHA-256 do instalador OpenSSL falhou."
+        }
+
+        $process = Start-Process -FilePath $tempInstaller `
+            -ArgumentList @("/verysilent", "/sp-", "/suppressmsgboxes", "/norestart") `
+            -Wait -PassThru
+        if ($process.ExitCode -ne 0) {
+            throw "O instalador oficial do OpenSSL terminou com codigo $($process.ExitCode)."
+        }
+    } finally {
+        if ($tempInstaller -and (Test-Path $tempInstaller)) {
+            Remove-Item -Path $tempInstaller -Force
+        }
     }
 }
 
@@ -124,7 +178,9 @@ function Get-PythonCommand {
     $python = Find-PythonCommand
     if ($python) { return $python }
 
-    Install-WingetPackage -PackageId $PythonWingetId -DisplayName "Python 3.12"
+    if (-not (Install-WingetPackage -PackageId $PythonWingetId -DisplayName "Python 3.12")) {
+        throw "Nao foi possivel instalar Python automaticamente. Instale Python 3.10 ou superior e execute o script novamente."
+    }
     $python = Find-PythonCommand
     if ($python) { return $python }
 
@@ -141,8 +197,10 @@ function Find-OpenSslCommand {
     $openSslCandidates = @(
         (Join-Path $env:ProgramFiles "OpenSSL-Win64\\bin\\openssl.exe"),
         (Join-Path $env:ProgramFiles "OpenSSL-Win32\\bin\\openssl.exe"),
+        (Join-Path $env:ProgramFiles "OpenSSL-Win64-ARM\\bin\\openssl.exe"),
         (Join-Path $env:ProgramFiles "OpenSSL\\bin\\openssl.exe"),
-        (Join-Path $env:LocalAppData "Programs\\OpenSSL-Win64\\bin\\openssl.exe")
+        (Join-Path $env:LocalAppData "Programs\\OpenSSL-Win64\\bin\\openssl.exe"),
+        (Join-Path $env:LocalAppData "Programs\\OpenSSL-Win64-ARM\\bin\\openssl.exe")
     )
     return $openSslCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 }
@@ -151,7 +209,17 @@ function Get-OpenSslCommand {
     $openSslPath = Find-OpenSslCommand
     if ($openSslPath) { return $openSslPath }
 
-    Install-WingetPackage -PackageId $OpenSslWingetId -DisplayName "OpenSSL"
+    $installedWithWinget = Install-WingetPackage -PackageId $OpenSslWingetId -DisplayName "OpenSSL"
+    $openSslPath = Find-OpenSslCommand
+    if ($openSslPath) { return $openSslPath }
+
+    if ($installedWithWinget) {
+        Write-Warning "O winget informou sucesso, mas o OpenSSL nao foi localizado. Tentando o instalador oficial."
+    } else {
+        Write-Warning "Tentando o instalador oficial do OpenSSL apos a falha do winget."
+    }
+
+    Install-OpenSslFromOfficialSource
     $openSslPath = Find-OpenSslCommand
     if ($openSslPath) { return $openSslPath }
 
