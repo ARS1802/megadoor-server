@@ -67,7 +67,10 @@ function Install-OpenSslFromOfficialSource {
         if (-not $installer) {
             throw "Nao encontrei um instalador OpenSSL Light compativel com esta arquitetura."
         }
-        if ($installer.url -notmatch "^https://slproweb\\.com/download/") {
+        $installerUri = [Uri]$installer.url
+        if ($installerUri.Scheme -ne "https" -or
+            $installerUri.Host -ne "slproweb.com" -or
+            -not $installerUri.AbsolutePath.StartsWith("/download/")) {
             throw "A URL do instalador OpenSSL nao pertence ao fornecedor oficial."
         }
 
