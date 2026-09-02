@@ -121,6 +121,19 @@ function Get-ServerIPv4 {
     return $address
 }
 
+function New-TemporaryTokens {
+    $random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        for ($index = 0; $index -lt 16; $index++) {
+            $bytes = New-Object byte[] 16
+            $random.GetBytes($bytes)
+            [Convert]::ToBase64String($bytes).TrimEnd("=").Replace("+", "-").Replace("/", "_")
+        }
+    } finally {
+        $random.Dispose()
+    }
+}
+
 function Test-PythonCommand {
     param(
         [Parameter(Mandatory)]
@@ -310,9 +323,8 @@ if ($certificateReason) {
 }
 
 $env:FILE_SERVER_ROOT = $SharedRoot
-$tokensCsv = & $venvPython -c 'import secrets; print(",".join(secrets.token_urlsafe(16) for _ in range(16)))'
-if ($LASTEXITCODE -ne 0 -or -not $tokensCsv) { throw "Falha ao gerar tokens temporarios." }
-$env:FILE_SERVER_TOKENS = $tokensCsv.Trim()
+$env:FILE_SERVER_TOKENS = (New-TemporaryTokens) -join ","
+if (-not $env:FILE_SERVER_TOKENS) { throw "Falha ao gerar tokens temporarios." }
 
 $tokenFile = Join-Path $SharedRoot "tokenList"
 $tokenLines = @(
